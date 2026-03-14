@@ -5,7 +5,10 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
 
-    <include file="db/changelog/changes/001-create-sessions-table.xml"/>
-    <include file="db/changelog/changes/002-fix-session-attributes-bytes.xml"/>
+    <changeSet id="002" author="jesper" dbms="postgresql">
+        <modifyDataType tableName="spring_session_attributes"
+                        columnName="attribute_bytes"
+                        newDataType="BYTEA"/>
+    </changeSet>
 
 </databaseChangeLog>
