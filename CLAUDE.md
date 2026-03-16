@@ -219,3 +219,57 @@ Liquibase runs migrations on startup → app serves traffic.
 
 Build command is handled entirely by the Dockerfile (multi-stage Maven build).
 No separate build command needed in Render config.
+
+## Database development
+
+### Add timestamp columns
+All tables should have the following two columns.
+
+```java
+@CreationTimestamp
+@Column(name = "create_date")
+private LocalDateTime createDate;
+
+@UpdateTimestamp
+@Column(name = "latest_update")
+private LocalDateTime latestUpdate;
+```
+The only exceptions are tables matching concepts owned by outside librarie, eg `spring_session`.
+
+### Package structure
+
+```
+Base pacakge com.tarnvik.publicbackend.commuter
+model/
+  domain/
+    entity/     // Database entites
+    repository/ // Repositories
+    dao/        // Rarely used, but if used, they live here     
+```
+
+### Entity ids
+A typical entity id should be a long, generated as such
+```java
+@TableGenerator(name = "id_generator_<TABLE_NAME>", table = "id_gen", pkColumnName = "gen_name", valueColumnName = "gen_value",
+pkColumnValue = "<TABLE_NAME>_gen", initialValue = 10000, allocationSize = 1)
+@GeneratedValue(strategy = GenerationType.TABLE, generator = "id_generator_<TABLE_NAME>")
+@Column(name = "id")
+@Id
+private Long id;
+```
+Tables should normally have a id column.
+
+### Repositories
+Prefer JpaRepository over CrudRepository.
+
+## Java style guide
+
+### Lombok
+Prefer lombok annotations over explicit accessors and contructors.
+
+### REST Controllers
+Shall be concerned with verifiing parameters. Lives in the package `com.tarnvik.publicbackend.commuter.port.incoming.rest`
+
+### Services
+Shall be concerned with business logic. Typically called from restcontroller and other services. 
+Lives in the package `com.tarnvik.publicbackend.commuter.service` 
