@@ -257,12 +257,25 @@ pkColumnValue = "<TABLE_NAME>_gen", initialValue = 10000, allocationSize = 1)
 @Id
 private Long id;
 ```
+
+Every new entity that uses `@TableGenerator` must also have a corresponding row seeded in `id_gen` via a Liquibase changeset. The `id_gen` table has no auto-increment on its own primary key, so Hibernate cannot insert the row itself. Use `gen_value = initialValue` (typically 10000). Pick the next available integer for the `id` column.
+
+```xml
+<insert tableName="id_gen">
+    <column name="id" valueNumeric="<NEXT_INT>"/>
+    <column name="gen_name" value="<TABLE_NAME>_gen"/>
+    <column name="gen_value" valueNumeric="10000"/>
+</insert>
+```
 Tables should normally have a id column.
 
 ### Repositories
 Prefer JpaRepository over CrudRepository.
 
 ## Java style guide
+
+### Dependency injection
+Prefer constructor injection over field injection. Injected dependencies should be declared `private final`. For `@Configuration` classes that also inject `@Value` properties, annotate the `@Value` parameters directly on the constructor parameters.
 
 ### Lombok
 Prefer lombok annotations over explicit accessors and contructors.
