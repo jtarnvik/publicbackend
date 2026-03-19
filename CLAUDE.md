@@ -222,6 +222,16 @@ No separate build command needed in Render config.
 
 ## Database development
 
+### Row Level Security (PostgreSQL)
+
+All tables created in PostgreSQL must have row level security enabled. Include the following SQL in every Liquibase changeset that creates a table, using `dbms="postgresql"`:
+
+```xml
+<sql dbms="postgresql">ALTER TABLE <table_name> ENABLE ROW LEVEL SECURITY;</sql>
+```
+
+This must be a separate `<sql>` tag within the same changeset, not a separate changeset.
+
 ### Add timestamp columns
 All tables should have the following two columns.
 

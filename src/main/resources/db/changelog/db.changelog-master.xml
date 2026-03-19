@@ -9,5 +9,6 @@
     <include file="db/changelog/changes/002-fix-session-attributes-bytes.xml"/>
     <include file="db/changelog/changes/003-set-up-id-gen.xml"/>
     <include file="db/changelog/changes/004-create-allowed-user-table.xml"/>
+    <include file="db/changelog/changes/005-enable-row-level-security.xml"/>
 
 </databaseChangeLog>

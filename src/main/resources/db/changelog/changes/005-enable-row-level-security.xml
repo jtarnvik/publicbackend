@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="005-1" author="jesper" dbms="postgresql">
+        <sql>ALTER TABLE id_gen ENABLE ROW LEVEL SECURITY;</sql>
+        <sql>ALTER TABLE allowed_user ENABLE ROW LEVEL SECURITY;</sql>
+    </changeSet>
+
+</databaseChangeLog>
