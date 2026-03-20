@@ -1,6 +1,7 @@
 package com.tarnvik.publicbackend.config;
 
 import com.tarnvik.publicbackend.commuter.service.AllowedUserService;
+import com.tarnvik.publicbackend.commuter.service.PendingUserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,11 +27,14 @@ import java.util.List;
 public class SecurityConfig {
 
   private final AllowedUserService allowedUserService;
+  private final PendingUserService pendingUserService;
   private final String frontendUrl;
 
   public SecurityConfig(AllowedUserService allowedUserService,
+                        PendingUserService pendingUserService,
                         @Value("${app.frontend-url}") String frontendUrl) {
     this.allowedUserService = allowedUserService;
+    this.pendingUserService = pendingUserService;
     this.frontendUrl = frontendUrl;
   }
 
@@ -82,8 +86,10 @@ public class SecurityConfig {
         String email = oauth2User.getAttribute("email");
 
         if (allowedUserService.isEmailAllowed(email)) {
-          response.sendRedirect("/ping");
+          response.sendRedirect(frontendUrl + "/sl-dashboard/");
         } else {
+          String name = oauth2User.getAttribute("name");
+          pendingUserService.recordLoginAttempt(email, name);
           request.getSession().invalidate();
           response.sendError(HttpServletResponse.SC_FORBIDDEN,
             "Access denied - you are not authorised to use this application");
