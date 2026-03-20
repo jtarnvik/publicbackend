@@ -32,6 +32,9 @@ build/
 ### VS Code ###
 .vscode/
 
+# macOS
+.DS_Store
+
 # Local Development
 .env
 application-local.properties

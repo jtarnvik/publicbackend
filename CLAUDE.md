@@ -296,3 +296,10 @@ Shall be concerned with verifiing parameters. Lives in the package `com.tarnvik.
 ### Services
 Shall be concerned with business logic. Typically called from restcontroller and other services. 
 Lives in the package `com.tarnvik.publicbackend.commuter.service` 
+
+### Requests to other systems
+Shall be named Providers. Typically calls to the Qwerty API, is implemented in the QwertyProvider class.
+Providers are sorted by first type and the service name, eg The Qwerty Service, if it is a Rest service, lives in the 
+package com.tarnvik.publicbackend.commuter.port.outging.rest.qwerty. A kafka privider to the Foo service would be 
+com.tarnvik.publicbackend.commuter.port.outgoing.kafka.foo package. Providers should hide as much implementation details as possible,
+and only expose the logical API.
