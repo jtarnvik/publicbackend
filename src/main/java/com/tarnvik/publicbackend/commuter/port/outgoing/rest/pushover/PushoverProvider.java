@@ -26,6 +26,14 @@ public class PushoverProvider {
     sendNotification("Nekad inloggning", name + " (" + email + ") nekades åtkomst.");
   }
 
+  public void sendAccessRequestNotification(String name, String email, String message) {
+    String body = name + " (" + email + ") ansöker om åtkomst.";
+    if (message != null && !message.isBlank()) {
+      body += "\n" + message;
+    }
+    sendNotification("Åtkomstbegäran", body);
+  }
+
   public void sendTestNotification() {
     sendNotification("SL Dashboard test", "Testmeddelande från SL Dashboard.");
   }

@@ -11,5 +11,6 @@
     <include file="db/changelog/changes/004-create-allowed-user-table.xml"/>
     <include file="db/changelog/changes/005-enable-row-level-security.xml"/>
     <include file="db/changelog/changes/006-create-pending-user-table.xml"/>
+    <include file="db/changelog/changes/007-create-access-request-table.xml"/>
 
 </databaseChangeLog>

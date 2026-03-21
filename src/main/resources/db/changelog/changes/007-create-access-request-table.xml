@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="007-1" author="jesper">
+        <createTable tableName="access_request">
+            <column name="id" type="BIGINT">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="email" type="varchar(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="message" type="varchar(1000)"/>
+            <column name="create_date" type="DATETIME"/>
+            <column name="latest_update" type="DATETIME"/>
+        </createTable>
+        <sql dbms="postgresql">ALTER TABLE access_request ENABLE ROW LEVEL SECURITY;</sql>
+    </changeSet>
+
+    <changeSet id="007-2" author="jesper">
+        <insert tableName="id_gen">
+            <column name="id" valueNumeric="3"/>
+            <column name="gen_name" value="access_request_gen"/>
+            <column name="gen_value" valueNumeric="10000"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

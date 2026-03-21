@@ -21,6 +21,8 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Configuration
@@ -96,7 +98,8 @@ public class SecurityConfig {
           pendingUserService.recordLoginAttempt(email, name);
           pushoverProvider.sendDeniedLoginNotification(email, name);
           request.getSession().invalidate();
-          response.sendRedirect(frontendUrl + "/sl-dashboard/#/denied");
+          String encodedEmail = URLEncoder.encode(email, StandardCharsets.UTF_8);
+          response.sendRedirect(frontendUrl + "/sl-dashboard/#/denied?email=" + encodedEmail);
         }
       }
     };
