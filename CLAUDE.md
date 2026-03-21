@@ -291,7 +291,9 @@ Prefer constructor injection over field injection. Injected dependencies should 
 Prefer lombok annotations over explicit accessors and contructors.
 
 ### REST Controllers
-Shall be concerned with verifiing parameters. Lives in the package `com.tarnvik.publicbackend.commuter.port.incoming.rest`
+Shall be concerned with verifying parameters. Lives in the package `com.tarnvik.publicbackend.commuter.port.incoming.rest`
+
+Use Bean Validation for parameter validation — annotate DTOs with `@NotBlank`, `@NotNull`, etc. and use `@Valid` on `@RequestBody` parameters. Do not use manual null/blank checks in controller methods for input that can be validated this way. The `spring-boot-starter-validation` dependency is included for this purpose.
 
 ### Services
 Shall be concerned with business logic. Typically called from restcontroller and other services. 
