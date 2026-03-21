@@ -96,8 +96,7 @@ public class SecurityConfig {
           pendingUserService.recordLoginAttempt(email, name);
           pushoverProvider.sendDeniedLoginNotification(email, name);
           request.getSession().invalidate();
-          response.sendError(HttpServletResponse.SC_FORBIDDEN,
-            "Access denied - you are not authorised to use this application");
+          response.sendRedirect(frontendUrl + "/sl-dashboard/#/denied");
         }
       }
     };
