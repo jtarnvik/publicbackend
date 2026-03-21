@@ -1,5 +1,6 @@
 package com.tarnvik.publicbackend.config;
 
+import com.tarnvik.publicbackend.commuter.port.outgoing.rest.pushover.PushoverProvider;
 import com.tarnvik.publicbackend.commuter.service.AllowedUserService;
 import com.tarnvik.publicbackend.commuter.service.PendingUserService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,13 +29,16 @@ public class SecurityConfig {
 
   private final AllowedUserService allowedUserService;
   private final PendingUserService pendingUserService;
+  private final PushoverProvider pushoverProvider;
   private final String frontendUrl;
 
   public SecurityConfig(AllowedUserService allowedUserService,
                         PendingUserService pendingUserService,
+                        PushoverProvider pushoverProvider,
                         @Value("${app.frontend-url}") String frontendUrl) {
     this.allowedUserService = allowedUserService;
     this.pendingUserService = pendingUserService;
+    this.pushoverProvider = pushoverProvider;
     this.frontendUrl = frontendUrl;
   }
 
@@ -90,6 +94,7 @@ public class SecurityConfig {
         } else {
           String name = oauth2User.getAttribute("name");
           pendingUserService.recordLoginAttempt(email, name);
+          pushoverProvider.sendDeniedLoginNotification(email, name);
           request.getSession().invalidate();
           response.sendError(HttpServletResponse.SC_FORBIDDEN,
             "Access denied - you are not authorised to use this application");
