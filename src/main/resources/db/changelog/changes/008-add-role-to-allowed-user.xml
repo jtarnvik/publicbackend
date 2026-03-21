@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="008-1" author="jesper">
+        <addColumn tableName="allowed_user">
+            <column name="role" type="varchar(50)"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="008-2" author="jesper">
+        <update tableName="allowed_user">
+            <column name="role" value="ADMIN"/>
+            <where>email = 'jtarnvik@gmail.com'</where>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>

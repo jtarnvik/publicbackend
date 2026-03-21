@@ -33,6 +33,9 @@ public class AllowedUser {
   @Column(name = "name", nullable = false)
   private String name;
 
+  @Column(name = "role")
+  private String role;
+
   @CreationTimestamp
   @Column(name = "create_date")
   private LocalDateTime createDate;

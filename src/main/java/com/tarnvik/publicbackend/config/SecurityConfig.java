@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.Authentication;
@@ -27,20 +28,24 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
   private final AllowedUserService allowedUserService;
   private final PendingUserService pendingUserService;
   private final PushoverProvider pushoverProvider;
+  private final OidcRoleEnrichmentService oidcRoleEnrichmentService;
   private final String frontendUrl;
 
   public SecurityConfig(AllowedUserService allowedUserService,
                         PendingUserService pendingUserService,
                         PushoverProvider pushoverProvider,
+                        OidcRoleEnrichmentService oidcRoleEnrichmentService,
                         @Value("${app.frontend-url}") String frontendUrl) {
     this.allowedUserService = allowedUserService;
     this.pendingUserService = pendingUserService;
     this.pushoverProvider = pushoverProvider;
+    this.oidcRoleEnrichmentService = oidcRoleEnrichmentService;
     this.frontendUrl = frontendUrl;
   }
 
@@ -56,6 +61,7 @@ public class SecurityConfig {
         .anyRequest().authenticated()
       )
       .oauth2Login(oauth2 -> oauth2
+        .userInfoEndpoint(userInfo -> userInfo.oidcUserService(oidcRoleEnrichmentService))
         .successHandler(authenticationSuccessHandler())
       )
       .logout(logout -> logout

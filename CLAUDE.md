@@ -295,6 +295,8 @@ Shall be concerned with verifying parameters. Lives in the package `com.tarnvik.
 
 Use Bean Validation for parameter validation — annotate DTOs with `@NotBlank`, `@NotNull`, etc. and use `@Valid` on `@RequestBody` parameters. Do not use manual null/blank checks in controller methods for input that can be validated this way. The `spring-boot-starter-validation` dependency is included for this purpose.
 
+Admin-only endpoints must be annotated with `@PreAuthorize("hasRole('ADMIN')")`. `@EnableMethodSecurity` is already enabled in `SecurityConfig`.
+
 ### Services
 Shall be concerned with business logic. Typically called from restcontroller and other services. 
 Lives in the package `com.tarnvik.publicbackend.commuter.service` 
