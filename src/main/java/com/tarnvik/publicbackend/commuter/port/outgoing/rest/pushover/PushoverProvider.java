@@ -16,11 +16,10 @@ public class PushoverProvider {
 
   public PushoverProvider(
       @Value("${app.pushover.api-token}") String apiToken,
-      @Value("${app.pushover.user-key}") String userKey,
-      RestClient.Builder restClientBuilder) {
+      @Value("${app.pushover.user-key}") String userKey) {
     this.apiToken = apiToken;
     this.userKey = userKey;
-    this.restClient = restClientBuilder.baseUrl("https://api.pushover.net").build();
+    this.restClient = RestClient.builder().baseUrl("https://api.pushover.net").build();
   }
 
   public void sendDeniedLoginNotification(String email, String name) {

@@ -97,6 +97,13 @@
 			<scope>runtime</scope>
 		</dependency>
 
+		<!-- For travel H2 embedded database -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-session-jdbc</artifactId>

@@ -39,3 +39,5 @@ build/
 .env
 application-local.properties
 src/main/resources/application-local.properties
+application-travel.properties
+src/main/resources/application-travel.properties
