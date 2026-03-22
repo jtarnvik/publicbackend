@@ -1,8 +1,8 @@
 package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.AccessRequestDto;
 import com.tarnvik.publicbackend.commuter.service.AccessRequestService;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,5 +25,4 @@ public class AccessRequestController {
     return ResponseEntity.ok().build();
   }
 
-  record AccessRequestDto(@NotBlank String email, String message) {}
 }

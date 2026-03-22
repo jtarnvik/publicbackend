@@ -1,6 +1,6 @@
 package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 
-
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.MeResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,5 +34,4 @@ public class AuthController {
     ));
   }
 
-  private record MeResponse(String email, String name, String picture, String role) {}
 }

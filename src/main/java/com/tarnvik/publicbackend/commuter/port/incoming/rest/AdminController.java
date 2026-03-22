@@ -1,5 +1,7 @@
 package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.AccessRequestResponse;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.AllowedUserResponse;
 import com.tarnvik.publicbackend.commuter.service.AdminService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -70,7 +72,4 @@ public class AdminController {
     return dateTime.format(DATE_FORMATTER);
   }
 
-  private record AccessRequestResponse(Long id, String email, String name, String createDate) {}
-
-  private record AllowedUserResponse(Long id, String email, String name, String role, String createDate) {}
 }

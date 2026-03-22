@@ -204,6 +204,12 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 
 ---
 
+## File Management
+
+When a new file is created and the user has approved it, stage it in git with `git add <file>`.
+
+---
+
 ## Local Development
 
 1. Ensure MySQL is running at `192.168.1.204:3306` with database `commuter`
@@ -296,6 +302,16 @@ Shall be concerned with verifying parameters. Lives in the package `com.tarnvik.
 Use Bean Validation for parameter validation — annotate DTOs with `@NotBlank`, `@NotNull`, etc. and use `@Valid` on `@RequestBody` parameters. Do not use manual null/blank checks in controller methods for input that can be validated this way. The `spring-boot-starter-validation` dependency is included for this purpose.
 
 Admin-only endpoints must be annotated with `@PreAuthorize("hasRole('ADMIN')")`. `@EnableMethodSecurity` is already enabled in `SecurityConfig`.
+
+### DTO naming convention
+
+DTOs are named with a `Request` or `Response` suffix based on direction:
+- Inbound (request body): `XxxRequest`
+- Outbound (response body): `XxxResponse`
+
+Exception: if the `Request` suffix produces a confusing or redundant name (e.g. `AccessRequestRequest`), use `Dto` suffix instead.
+
+DTOs live in `com.tarnvik.publicbackend.commuter.port.incoming.rest.dto`, not as inner classes in controllers.
 
 ### Services
 Shall be concerned with business logic. Typically called from restcontroller and other services. 
