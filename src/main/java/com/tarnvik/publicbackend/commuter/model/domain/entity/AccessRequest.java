@@ -30,6 +30,9 @@ public class AccessRequest {
   @Column(name = "email", nullable = false, unique = true)
   private String email;
 
+  @Column(name = "name")
+  private String name;
+
   @Column(name = "message")
   private String message;
 

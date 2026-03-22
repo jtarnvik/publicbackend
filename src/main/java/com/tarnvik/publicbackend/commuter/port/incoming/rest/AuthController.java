@@ -2,27 +2,37 @@ package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
-
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
   @GetMapping("/me")
-  public ResponseEntity<Map<String, String>> me(@AuthenticationPrincipal OAuth2User user) {
+  public ResponseEntity<MeResponse> me(@AuthenticationPrincipal OAuth2User user) {
     if (user == null) {
       return ResponseEntity.status(401).build();
     }
-    return ResponseEntity.ok(Map.of(
-      "email", user.getAttribute("email"),
-      "name", user.getAttribute("name"),
-      "picture", user.getAttribute("picture")
+
+    String role = user.getAuthorities().stream()
+      .map(GrantedAuthority::getAuthority)
+      .filter(a -> a.equals("ROLE_ADMIN"))
+      .map(a -> a.substring(5))
+      .findFirst()
+      .orElse(null);
+
+    return ResponseEntity.ok(new MeResponse(
+      user.getAttribute("email"),
+      user.getAttribute("name"),
+      user.getAttribute("picture"),
+      role
     ));
   }
+
+  private record MeResponse(String email, String name, String picture, String role) {}
 }

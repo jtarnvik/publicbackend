@@ -13,5 +13,6 @@
     <include file="db/changelog/changes/006-create-pending-user-table.xml"/>
     <include file="db/changelog/changes/007-create-access-request-table.xml"/>
     <include file="db/changelog/changes/008-add-role-to-allowed-user.xml"/>
+    <include file="db/changelog/changes/009-add-name-to-access-request.xml"/>
 
 </databaseChangeLog>

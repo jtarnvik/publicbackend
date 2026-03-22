@@ -37,6 +37,7 @@ public class AccessRequestService {
 
     var request = new AccessRequest();
     request.setEmail(email);
+    request.setName(pendingUser.get().getName());
     request.setMessage(message);
     accessRequestRepository.save(request);
 
