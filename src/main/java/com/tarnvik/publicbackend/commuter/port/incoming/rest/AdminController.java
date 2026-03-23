@@ -2,6 +2,8 @@ package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.AccessRequestResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.AllowedUserResponse;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.mapper.AccessRequestMapper;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.mapper.AllowedUserMapper;
 import com.tarnvik.publicbackend.commuter.service.AdminService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -13,8 +15,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @RestController
@@ -22,15 +22,15 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AdminController {
 
-  private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-
   private final AdminService adminService;
+  private final AccessRequestMapper accessRequestMapper;
+  private final AllowedUserMapper allowedUserMapper;
 
   @GetMapping("/access-requests")
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<List<AccessRequestResponse>> listAccessRequests() {
     List<AccessRequestResponse> responses = adminService.listAccessRequests().stream()
-      .map(r -> new AccessRequestResponse(r.getId(), r.getEmail(), r.getName(), formatDate(r.getCreateDate())))
+      .map(accessRequestMapper::toResponse)
       .toList();
     return ResponseEntity.ok(responses);
   }
@@ -53,7 +53,7 @@ public class AdminController {
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<List<AllowedUserResponse>> listUsers() {
     List<AllowedUserResponse> responses = adminService.listUsers().stream()
-      .map(u -> new AllowedUserResponse(u.getId(), u.getEmail(), u.getName(), u.getRole(), formatDate(u.getCreateDate())))
+      .map(allowedUserMapper::toResponse)
       .toList();
     return ResponseEntity.ok(responses);
   }
@@ -64,12 +64,4 @@ public class AdminController {
     adminService.deleteUser(id);
     return ResponseEntity.ok().build();
   }
-
-  private String formatDate(LocalDateTime dateTime) {
-    if (dateTime == null) {
-      return null;
-    }
-    return dateTime.format(DATE_FORMATTER);
-  }
-
 }

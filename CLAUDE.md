@@ -317,6 +317,24 @@ DTOs live in `com.tarnvik.publicbackend.commuter.port.incoming.rest.dto`, not as
 Shall be concerned with business logic. Typically called from restcontroller and other services. 
 Lives in the package `com.tarnvik.publicbackend.commuter.service` 
 
+### Entity-to-DTO mapping (MapStruct)
+
+Use MapStruct for all entity-to-DTO conversions. Do not write manual field-by-field mapping in controllers or services.
+
+- Mappers live in `com.tarnvik.publicbackend.commuter.port.incoming.rest.mapper`
+- Declare mappers as `interface` (not abstract class)
+- MapStruct is wired as a Spring bean via `componentModel = "spring"` — inject mappers with constructor injection like any other bean
+- For custom type conversions (e.g. `LocalDateTime` → `String`), use a `@Component` converter class with a method annotated with a MapStruct `@Qualifier` annotation, and reference it via `uses` + `qualifiedBy`. **Do not use `expression = "java(...)"` — it embeds Java code in a string and breaks IDE refactoring.**
+- `DateConverter` (in the mapper package) handles `LocalDateTime → String` formatting using the `@DateFormat` qualifier. Use it like this:
+  ```java
+  @Mapper(componentModel = "spring", uses = DateConverter.class)
+  public interface FooMapper {
+    @Mapping(target = "createDate", source = "createDate", qualifiedBy = DateFormat.class)
+    FooResponse toResponse(Foo foo);
+  }
+  ```
+- Annotation processor ordering: Lombok runs before MapStruct via `lombok-mapstruct-binding` in the maven-compiler-plugin `annotationProcessorPaths`. Do not reorder these entries
+
 ### Requests to other systems
 Shall be named Providers. Typically calls to the Qwerty API, is implemented in the QwertyProvider class.
 Providers are sorted by first type and the service name, eg The Qwerty Service, if it is a Rest service, lives in the 
