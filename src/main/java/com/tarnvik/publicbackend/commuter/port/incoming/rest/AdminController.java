@@ -26,6 +26,12 @@ public class AdminController {
   private final AccessRequestMapper accessRequestMapper;
   private final AllowedUserMapper allowedUserMapper;
 
+  @GetMapping("/access-requests/count")
+  @PreAuthorize("hasRole('ADMIN')")
+  public ResponseEntity<Long> countAccessRequests() {
+    return ResponseEntity.ok(adminService.countAccessRequests());
+  }
+
   @GetMapping("/access-requests")
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<List<AccessRequestResponse>> listAccessRequests() {

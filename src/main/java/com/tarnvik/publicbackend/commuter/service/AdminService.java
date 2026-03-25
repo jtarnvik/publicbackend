@@ -22,6 +22,10 @@ public class AdminService {
     return accessRequestRepository.findAll();
   }
 
+  public long countAccessRequests() {
+    return accessRequestRepository.count();
+  }
+
   public void approveAccessRequest(Long id) {
     AccessRequest request = accessRequestRepository.findById(id)
       .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
