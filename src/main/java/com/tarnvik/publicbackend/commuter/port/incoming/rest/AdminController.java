@@ -4,7 +4,8 @@ import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.AccessRequestRe
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.AllowedUserResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.mapper.AccessRequestMapper;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.mapper.AllowedUserMapper;
-import com.tarnvik.publicbackend.commuter.service.AdminService;
+import com.tarnvik.publicbackend.commuter.service.AccessRequestService;
+import com.tarnvik.publicbackend.commuter.service.AllowedUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,20 +23,21 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AdminController {
 
-  private final AdminService adminService;
+  private final AccessRequestService accessRequestService;
+  private final AllowedUserService allowedUserService;
   private final AccessRequestMapper accessRequestMapper;
   private final AllowedUserMapper allowedUserMapper;
 
   @GetMapping("/access-requests/count")
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<Long> countAccessRequests() {
-    return ResponseEntity.ok(adminService.countAccessRequests());
+    return ResponseEntity.ok(accessRequestService.countAccessRequests());
   }
 
   @GetMapping("/access-requests")
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<List<AccessRequestResponse>> listAccessRequests() {
-    List<AccessRequestResponse> responses = adminService.listAccessRequests().stream()
+    List<AccessRequestResponse> responses = accessRequestService.listAccessRequests().stream()
       .map(accessRequestMapper::toResponse)
       .toList();
     return ResponseEntity.ok(responses);
@@ -44,21 +46,21 @@ public class AdminController {
   @PostMapping("/access-requests/{id}/approve")
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<Void> approveAccessRequest(@PathVariable Long id) {
-    adminService.approveAccessRequest(id);
+    accessRequestService.approveAccessRequest(id);
     return ResponseEntity.ok().build();
   }
 
   @DeleteMapping("/access-requests/{id}")
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<Void> rejectAccessRequest(@PathVariable Long id) {
-    adminService.rejectAccessRequest(id);
+    accessRequestService.rejectAccessRequest(id);
     return ResponseEntity.ok().build();
   }
 
   @GetMapping("/users")
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<List<AllowedUserResponse>> listUsers() {
-    List<AllowedUserResponse> responses = adminService.listUsers().stream()
+    List<AllowedUserResponse> responses = allowedUserService.listUsers().stream()
       .map(allowedUserMapper::toResponse)
       .toList();
     return ResponseEntity.ok(responses);
@@ -67,7 +69,7 @@ public class AdminController {
   @DeleteMapping("/users/{id}")
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
-    adminService.deleteUser(id);
+    allowedUserService.deleteUser(id);
     return ResponseEntity.ok().build();
   }
 }
