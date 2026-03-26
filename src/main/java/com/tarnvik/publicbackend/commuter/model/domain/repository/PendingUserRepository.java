@@ -10,5 +10,7 @@ public interface PendingUserRepository extends JpaRepository<PendingUser, Long> 
 
   Optional<PendingUser> findByEmail(String email);
 
+  void deleteByEmail(String email);
+
   void deleteByLastLoginAttemptBefore(LocalDateTime cutoff);
 }

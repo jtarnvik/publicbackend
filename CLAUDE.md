@@ -300,6 +300,23 @@ Prefer lombok annotations over explicit accessors and contructors.
 
 Classes containing `@Scheduled` methods are treated as incoming triggers and live in `com.tarnvik.publicbackend.commuter.port.incoming.scheduled`, on the same level as `port/incoming/rest`. Annotate with `@Component` and use `@Transactional` on methods that modify the database. Use cron expressions for time-based scheduling (e.g. `"0 0 0 * * *"` for midnight daily).
 
+### Controller tests
+
+Use `@WebMvcTest` for controller-layer tests. Spring Boot 4 splits security autoconfiguration across more modules than Boot 3 — to fully disable security in a `@WebMvcTest` slice, exclude all five classes:
+
+```java
+@WebMvcTest(controllers = MyController.class,
+            excludeAutoConfiguration = {
+              SecurityAutoConfiguration.class,
+              SecurityFilterAutoConfiguration.class,
+              ServletWebSecurityAutoConfiguration.class,
+              OAuth2ClientAutoConfiguration.class,
+              OAuth2ClientWebSecurityAutoConfiguration.class
+            })
+```
+
+Tests that need security (e.g. verifying that an endpoint requires a role) should instead use `@WithMockUser` and not exclude security.
+
 ### REST Controllers
 Shall be concerned with verifying parameters. Lives in the package `com.tarnvik.publicbackend.commuter.port.incoming.rest`
 

@@ -56,11 +56,13 @@ public class AccessRequestService {
       .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     allowedUserService.createUser(request.getEmail(), request.getName());
     accessRequestRepository.delete(request);
+    pendingUserRepository.deleteByEmail(request.getEmail());
   }
 
   public void rejectAccessRequest(Long id) {
     AccessRequest request = accessRequestRepository.findById(id)
       .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     accessRequestRepository.delete(request);
+    pendingUserRepository.deleteByEmail(request.getEmail());
   }
 }
