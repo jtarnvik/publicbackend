@@ -5,6 +5,7 @@ import com.tarnvik.publicbackend.commuter.model.domain.repository.AllowedUserRep
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -19,6 +20,7 @@ public class AllowedUserService {
     return allowedUserRepository.findByEmail(email).isPresent();
   }
 
+  @Transactional
   public void createUser(String email, String name) {
     if (allowedUserRepository.findByEmail(email).isEmpty()) {
       var user = new AllowedUser();
@@ -32,6 +34,7 @@ public class AllowedUserService {
     return allowedUserRepository.findAll();
   }
 
+  @Transactional
   public void deleteUser(Long id) {
     AllowedUser user = allowedUserRepository.findById(id)
       .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));

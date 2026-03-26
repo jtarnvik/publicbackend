@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -22,6 +23,7 @@ public class AccessRequestService {
   private final PushoverProvider pushoverProvider;
   private final AllowedUserService allowedUserService;
 
+  @Transactional
   public void handleAccessRequest(String email, String message) {
     var pendingUser = pendingUserRepository.findByEmail(email);
     if (pendingUser.isEmpty()) {
@@ -51,6 +53,7 @@ public class AccessRequestService {
     return accessRequestRepository.count();
   }
 
+  @Transactional
   public void approveAccessRequest(Long id) {
     AccessRequest request = accessRequestRepository.findById(id)
       .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
@@ -59,6 +62,7 @@ public class AccessRequestService {
     pendingUserRepository.deleteByEmail(request.getEmail());
   }
 
+  @Transactional
   public void rejectAccessRequest(Long id) {
     AccessRequest request = accessRequestRepository.findById(id)
       .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
