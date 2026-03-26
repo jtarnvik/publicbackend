@@ -7,7 +7,7 @@ This file provides context for AI-assisted development of the `publicbackend` pr
 Personal Stockholm commuter dashboard backend. Proxies SL Trafiklab APIs and parses
 deviation messages using the Claude API. Serves 4 users: the developer and family/friends.
 
-- **Backend:** Spring Boot 4.0.3 (Java 21)
+- **Backend:** Spring Boot 4.0.4 (Java 21)
 - **Frontend:** React SPA on GitHub Pages at `https://jtarnvik.github.io/sl-dashboard/`
 - **Production hosting:** Render.com
 - **Database:** Supabase (PostgreSQL) in production, MySQL 8.x locally
@@ -295,6 +295,10 @@ Prefer constructor injection over field injection. Injected dependencies should 
 
 ### Lombok
 Prefer lombok annotations over explicit accessors and contructors.
+
+### Scheduled Jobs
+
+Classes containing `@Scheduled` methods are treated as incoming triggers and live in `com.tarnvik.publicbackend.commuter.port.incoming.scheduled`, on the same level as `port/incoming/rest`. Annotate with `@Component` and use `@Transactional` on methods that modify the database. Use cron expressions for time-based scheduling (e.g. `"0 0 0 * * *"` for midnight daily).
 
 ### REST Controllers
 Shall be concerned with verifying parameters. Lives in the package `com.tarnvik.publicbackend.commuter.port.incoming.rest`
