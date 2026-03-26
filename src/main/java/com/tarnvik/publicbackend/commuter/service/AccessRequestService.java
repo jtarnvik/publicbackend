@@ -45,10 +45,12 @@ public class AccessRequestService {
     pushoverProvider.sendAccessRequestNotification(pendingUser.get().getName(), email, message);
   }
 
+  @Transactional(readOnly = true)
   public List<AccessRequest> listAccessRequests() {
     return accessRequestRepository.findAll();
   }
 
+  @Transactional(readOnly = true)
   public long countAccessRequests() {
     return accessRequestRepository.count();
   }

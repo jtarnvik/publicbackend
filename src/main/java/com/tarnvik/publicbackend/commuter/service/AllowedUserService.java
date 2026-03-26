@@ -16,6 +16,7 @@ public class AllowedUserService {
 
   private final AllowedUserRepository allowedUserRepository;
 
+  @Transactional(readOnly = true)
   public boolean isEmailAllowed(String email) {
     return allowedUserRepository.findByEmail(email).isPresent();
   }
@@ -30,6 +31,7 @@ public class AllowedUserService {
     }
   }
 
+  @Transactional(readOnly = true)
   public List<AllowedUser> listUsers() {
     return allowedUserRepository.findAll();
   }

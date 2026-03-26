@@ -4,6 +4,7 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.PendingUser;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.PendingUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -13,6 +14,7 @@ public class PendingUserService {
 
   private final PendingUserRepository pendingUserRepository;
 
+  @Transactional
   public void recordLoginAttempt(String email, String name) {
     PendingUser pendingUser = pendingUserRepository.findByEmail(email)
       .orElseGet(() -> {
