@@ -14,5 +14,7 @@
     <include file="db/changelog/changes/007-create-access-request-table.xml"/>
     <include file="db/changelog/changes/008-add-role-to-allowed-user.xml"/>
     <include file="db/changelog/changes/009-add-name-to-access-request.xml"/>
+    <include file="db/changelog/changes/010-create-user-settings-table.xml"/>
+    <include file="db/changelog/changes/011-cascade-delete-user-settings.xml"/>
 
 </databaseChangeLog>

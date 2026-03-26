@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="010-1" author="jesper">
+        <createTable tableName="user_settings">
+            <column name="id" type="BIGINT">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="allowed_user_id" type="BIGINT">
+                <constraints nullable="false" unique="true"
+                             foreignKeyName="fk_user_settings_allowed_user"
+                             references="allowed_user(id)"/>
+            </column>
+            <column name="stop_point_id" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="stop_point_name" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="create_date" type="DATETIME"/>
+            <column name="latest_update" type="DATETIME"/>
+        </createTable>
+        <sql dbms="postgresql">ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;</sql>
+    </changeSet>
+
+    <changeSet id="010-2" author="jesper">
+        <insert tableName="id_gen">
+            <column name="id" valueNumeric="4"/>
+            <column name="gen_name" value="user_settings_gen"/>
+            <column name="gen_value" valueNumeric="10000"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>
