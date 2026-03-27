@@ -4,8 +4,7 @@ This file provides context for AI-assisted development of the `publicbackend` pr
 
 ## Project Overview
 
-Personal Stockholm commuter dashboard backend. Proxies SL Trafiklab APIs and parses
-deviation messages using the Claude API. Serves 4 users: the developer and family/friends.
+Personal Stockholm commuter dashboard backend. Handles Google OAuth2 authentication, user management (access requests, allowed users), and settings persistence. Planned features include proxying SL Trafiklab APIs and parsing deviation messages via the Claude API. Serves the developer and a few friends.
 
 - **Backend:** Spring Boot 4.0.4 (Java 21)
 - **Frontend:** React SPA on GitHub Pages at `https://jtarnvik.github.io/sl-dashboard/`
@@ -190,23 +189,16 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | GET | `/ping` | Public | Health check, returns "ok" |
-| GET | `/api/auth/me` | Optional | Returns user info or 401 |
+| POST | `/api/public/access-request` | Public | Submit an access request |
+| GET | `/api/auth/me` | Optional | Returns user info (with settings) or 401 |
 | POST | `/api/auth/logout` | Optional | Clears session and cookie |
-
----
-
-## Planned Features (not yet implemented)
-
-- SL Trafiklab API proxy endpoints (protected)
-- Deviation message parsing via Claude API (Haiku model)
-- Deviation caching table (SHA-256 hash of message → parsed JSON columns)
-- React frontend integration
-
----
-
-## File Management
-
-When a new file is created and the user has approved it, stage it in git with `git add <file>`.
+| PUT | `/api/protected/settings` | User | Save stop point settings |
+| GET | `/api/admin/access-requests/count` | Admin | Count pending access requests |
+| GET | `/api/admin/access-requests` | Admin | List pending access requests |
+| POST | `/api/admin/access-requests/{id}/approve` | Admin | Approve an access request |
+| DELETE | `/api/admin/access-requests/{id}` | Admin | Reject/delete an access request |
+| GET | `/api/admin/users` | Admin | List allowed users |
+| DELETE | `/api/admin/users/{id}` | Admin | Delete an allowed user |
 
 ---
 
