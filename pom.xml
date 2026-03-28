@@ -29,6 +29,7 @@
 	<properties>
 		<java.version>21</java.version>
 		<mapstruct.version>1.6.3</mapstruct.version>
+		<anthropic-java.version>2.18.0</anthropic-java.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -121,6 +122,12 @@
 		<dependency>
 			<groupId>org.springframework.session</groupId>
 			<artifactId>spring-session-jdbc</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.anthropic</groupId>
+			<artifactId>anthropic-java</artifactId>
+			<version>${anthropic-java.version}</version>
 		</dependency>
 	</dependencies>
 
