@@ -12,16 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/*
-Inställda tåg förekommer på linje 43 med destination Handen/Kallhäll/Bro under måndag-fredag mellan cirka kl 06:00-09:00 och kl 15:00-18:00 på grund av fordonsbrist. Prognos saknas för när trafiken åter kan köras som vanligt. Sök din resa i Reseplaneraren på sl.se eller i SL-appen för att hitta det bästa alternativet för dig.
-
-
-Går endast till Liljevalchs/Gröna Lund pga vagnbrist
-
-
- */
-
-
 @Slf4j
 @Component
 public class ClaudeProvider {

@@ -1,5 +1,6 @@
 package com.tarnvik.publicbackend.commuter.port.outgoing.rest.claude.dto;
 
+import com.tarnvik.publicbackend.commuter.model.domain.entity.Importance;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

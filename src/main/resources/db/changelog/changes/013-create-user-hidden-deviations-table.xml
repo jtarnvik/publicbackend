@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="013-1" author="jesper">
+        <createTable tableName="user_hidden_deviations">
+            <column name="id" type="BIGINT">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="allowed_user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deviation_interpretation_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="create_date" type="DATETIME"/>
+            <column name="latest_update" type="DATETIME"/>
+        </createTable>
+        <addUniqueConstraint tableName="user_hidden_deviations"
+                             columnNames="allowed_user_id, deviation_interpretation_id"
+                             constraintName="uq_user_hidden_deviations_user_deviation"/>
+        <addForeignKeyConstraint baseTableName="user_hidden_deviations"
+                                 baseColumnNames="allowed_user_id"
+                                 referencedTableName="allowed_users"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_user_hidden_deviations_allowed_user"
+                                 onDelete="CASCADE"/>
+        <addForeignKeyConstraint baseTableName="user_hidden_deviations"
+                                 baseColumnNames="deviation_interpretation_id"
+                                 referencedTableName="deviation_interpretations"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_user_hidden_deviations_deviation_interpretation"
+                                 onDelete="CASCADE"/>
+        <sql dbms="postgresql">ALTER TABLE user_hidden_deviations ENABLE ROW LEVEL SECURITY;</sql>
+    </changeSet>
+
+    <changeSet id="013-2" author="jesper">
+        <insert tableName="id_gen">
+            <column name="id" valueNumeric="6"/>
+            <column name="gen_name" value="user_hidden_deviations_gen"/>
+            <column name="gen_value" valueNumeric="10000"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

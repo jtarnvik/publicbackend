@@ -4,6 +4,10 @@ This file provides context for AI-assisted development of the `publicbackend` pr
 
 `{{BASE_PACKAGE}}` = `com.tarnvik.publicbackend.commuter`
 
+## Sensitive Files
+
+`application-local.properties` contains real secrets (API keys, database passwords, OAuth credentials). **Never read this file unless explicitly instructed.** If instructed to read it, first warn the user that its contents will be visible in the conversation and may be retained in Anthropic's systems, then wait for confirmation before proceeding.
+
 ## Project Overview
 
 Personal Stockholm commuter dashboard backend. Handles Google OAuth2 authentication, user management (access requests, allowed users), and settings persistence. Planned features include proxying SL Trafiklab APIs and parsing deviation messages via the Claude API. Serves the developer and a few friends.
