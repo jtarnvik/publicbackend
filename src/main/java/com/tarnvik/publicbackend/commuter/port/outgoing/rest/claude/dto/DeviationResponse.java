@@ -1,0 +1,29 @@
+package com.tarnvik.publicbackend.commuter.port.outgoing.rest.claude.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDate;
+import java.util.Optional;
+
+@NoArgsConstructor
+@AllArgsConstructor
+@Data
+public class DeviationResponse {
+  private Optional<LocalDate> from;
+  private Optional<LocalDate> to;
+
+  private Optional<Boolean> accessibility;
+
+  private Optional<Boolean> delays;
+  private Optional<Boolean> cancelations;
+
+  private Optional<Boolean> duringCommute;
+  private Optional<Boolean> duringWeekend;
+  private Optional<Boolean> duringNight;
+
+  private Importance importance;
+
+  private String interpretationNotes;
+}
