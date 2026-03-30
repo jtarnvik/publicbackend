@@ -12,6 +12,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.TableGenerator;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -23,6 +24,7 @@ import java.time.LocalDateTime;
   uniqueConstraints = @UniqueConstraint(columnNames = {"allowed_user_id", "deviation_interpretation_id"}))
 @Getter
 @Setter
+@NoArgsConstructor
 public class UserHiddenDeviation {
 
   @TableGenerator(name = "id_generator_user_hidden_deviations", table = "id_gen", pkColumnName = "gen_name", valueColumnName = "gen_value",
@@ -47,4 +49,9 @@ public class UserHiddenDeviation {
   @UpdateTimestamp
   @Column(name = "latest_update")
   private LocalDateTime latestUpdate;
+
+  public UserHiddenDeviation(AllowedUser allowedUser, DeviationInterpretation deviationInterpretation) {
+    this.allowedUser = allowedUser;
+    this.deviationInterpretation = deviationInterpretation;
+  }
 }

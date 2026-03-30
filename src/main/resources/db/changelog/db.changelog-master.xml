@@ -18,5 +18,6 @@
     <include file="db/changelog/changes/011-cascade-delete-user-settings.xml"/>
     <include file="db/changelog/changes/012-create-deviation-interpretations-table.xml"/>
     <include file="db/changelog/changes/013-create-user-hidden-deviations-table.xml"/>
+    <include file="db/changelog/changes/014-add-ai-error-to-deviation-interpretations.xml"/>
 
 </databaseChangeLog>

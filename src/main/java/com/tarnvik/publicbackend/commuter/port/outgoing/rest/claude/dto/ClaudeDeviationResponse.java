@@ -12,20 +12,15 @@ import java.util.Optional;
 @NoArgsConstructor
 @AllArgsConstructor
 @Data
-public class DeviationResponse {
+public class ClaudeDeviationResponse {
   private Optional<LocalDate> from;
   private Optional<LocalDate> to;
-
   private Optional<Boolean> accessibility;
-
   private Optional<Boolean> delays;
   private Optional<Boolean> cancelations;
-
   private Optional<Boolean> duringCommute;
   private Optional<Boolean> duringWeekend;
   private Optional<Boolean> duringNight;
-
   private Importance importance;
-
   private String interpretationNotes;
 }

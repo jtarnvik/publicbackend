@@ -1,5 +1,6 @@
 package com.tarnvik.publicbackend.commuter.model.domain.entity;
 
+import com.tarnvik.publicbackend.commuter.model.domain.DeviationResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -67,9 +68,39 @@ public class DeviationInterpretation {
   @Column(name = "interpretation_notes", length = 2000)
   private String interpretationNotes;
 
+  @Column(name = "ai_error", nullable = false)
+  private boolean aiError;
+
   @CreationTimestamp
   @Column(name = "create_date")
   private LocalDateTime createDate;
+
+  public static DeviationInterpretation from(String text, String hash, DeviationResponse response) {
+    DeviationInterpretation entity = new DeviationInterpretation();
+    entity.setHash(hash);
+    entity.setDeviationText(text);
+    entity.setFromDate(response.getFromDate());
+    entity.setToDate(response.getToDate());
+    entity.setAccessibility(response.getAccessibility());
+    entity.setDelays(response.getDelays());
+    entity.setCancelations(response.getCancelations());
+    entity.setDuringCommute(response.getDuringCommute());
+    entity.setDuringWeekend(response.getDuringWeekend());
+    entity.setDuringNight(response.getDuringNight());
+    entity.setImportance(response.getImportance());
+    entity.setInterpretationNotes(response.getInterpretationNotes());
+    entity.setAiError(false);
+    return entity;
+  }
+
+  public static DeviationInterpretation withAiError(String text, String hash) {
+    DeviationInterpretation entity = new DeviationInterpretation();
+    entity.setHash(hash);
+    entity.setDeviationText(text);
+    entity.setImportance(Importance.UNKNOWN);
+    entity.setAiError(true);
+    return entity;
+  }
 
   @UpdateTimestamp
   @Column(name = "latest_update")
