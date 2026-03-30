@@ -1,0 +1,45 @@
+package com.tarnvik.publicbackend.commuter.port.incoming.rest;
+
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.DeviationInterpretationResult;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.InterpretDeviationsRequest;
+import com.tarnvik.publicbackend.commuter.service.DeviationService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/protected/deviations")
+@RequiredArgsConstructor
+public class DeviationController {
+
+  private final DeviationService deviationService;
+
+  @PostMapping("/interpret")
+  public ResponseEntity<List<DeviationInterpretationResult>> interpretDeviations(
+    @AuthenticationPrincipal OAuth2User user,
+    @Valid @RequestBody InterpretDeviationsRequest request
+  ) {
+    String email = user.getAttribute("email");
+    List<DeviationInterpretationResult> results = deviationService.interpretDeviations(request.deviationTexts(), email);
+    return ResponseEntity.ok(results);
+  }
+
+  @PostMapping("/{id}/hide")
+  public ResponseEntity<Void> hideDeviation(
+    @AuthenticationPrincipal OAuth2User user,
+    @PathVariable Long id
+  ) {
+    String email = user.getAttribute("email");
+    deviationService.hideDeviation(id, email);
+    return ResponseEntity.ok().build();
+  }
+}
