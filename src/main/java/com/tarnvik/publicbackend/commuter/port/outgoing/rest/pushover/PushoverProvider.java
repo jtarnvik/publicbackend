@@ -34,6 +34,10 @@ public class PushoverProvider {
     sendNotification("Åtkomstbegäran", body);
   }
 
+  public void sendAiInterpretationErrorNotification(String hashPrefix, int errorCount) {
+    sendNotification("AI-tolkningsfel", "Avvikelse (hash: " + hashPrefix + "…) har misslyckats " + errorCount + " gånger. Tolkning låst i 24 timmar.");
+  }
+
   public void sendTestNotification() {
     sendNotification("SL Dashboard test", "Testmeddelande från SL Dashboard.");
   }

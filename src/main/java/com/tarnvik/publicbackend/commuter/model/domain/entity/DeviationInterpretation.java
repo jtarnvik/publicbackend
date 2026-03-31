@@ -93,6 +93,20 @@ public class DeviationInterpretation {
     return entity;
   }
 
+  public void updateFrom(DeviationResponse response) {
+    this.fromDate = response.getFromDate();
+    this.toDate = response.getToDate();
+    this.accessibility = response.getAccessibility();
+    this.delays = response.getDelays();
+    this.cancelations = response.getCancelations();
+    this.duringCommute = response.getDuringCommute();
+    this.duringWeekend = response.getDuringWeekend();
+    this.duringNight = response.getDuringNight();
+    this.importance = response.getImportance();
+    this.interpretationNotes = response.getInterpretationNotes();
+    this.aiError = false;
+  }
+
   public static DeviationInterpretation withAiError(String text, String hash) {
     DeviationInterpretation entity = new DeviationInterpretation();
     entity.setHash(hash);

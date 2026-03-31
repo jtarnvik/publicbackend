@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="015-1" author="jesper">
+        <createTable tableName="deviation_interpretation_errors">
+            <column name="id" type="BIGINT">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="hash" type="varchar(64)">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_deviation_interpretation_errors_hash"/>
+            </column>
+            <column name="error_count" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_attempt_at" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="locked_until" type="DATETIME"/>
+            <column name="create_date" type="DATETIME"/>
+            <column name="latest_update" type="DATETIME"/>
+        </createTable>
+        <sql dbms="postgresql">ALTER TABLE deviation_interpretation_errors ENABLE ROW LEVEL SECURITY;</sql>
+    </changeSet>
+
+    <changeSet id="015-2" author="jesper">
+        <insert tableName="id_gen">
+            <column name="id" valueNumeric="7"/>
+            <column name="gen_name" value="deviation_interpretation_errors_gen"/>
+            <column name="gen_value" valueNumeric="10000"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>
