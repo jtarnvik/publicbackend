@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface DeviationInterpretationRepository extends JpaRepository<DeviationInterpretation, Long> {
-
   Optional<DeviationInterpretation> findByHash(String hash);
 
   boolean existsByHash(String hash);

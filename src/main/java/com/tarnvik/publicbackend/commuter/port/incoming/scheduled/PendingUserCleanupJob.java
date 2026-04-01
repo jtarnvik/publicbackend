@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 @Component
 @RequiredArgsConstructor
 public class PendingUserCleanupJob {
-
   private final PendingUserRepository pendingUserRepository;
 
   @Scheduled(cron = "0 0 0 * * *")

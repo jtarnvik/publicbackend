@@ -19,7 +19,6 @@ import java.util.List;
 @RequestMapping("/api/protected/deviations")
 @RequiredArgsConstructor
 public class DeviationController {
-
   private final DeviationService deviationService;
 
   @PostMapping("/interpret")

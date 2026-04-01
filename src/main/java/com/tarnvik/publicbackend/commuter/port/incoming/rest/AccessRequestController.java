@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/public/access-request")
 public class AccessRequestController {
-
   private final AccessRequestService accessRequestService;
 
   public AccessRequestController(AccessRequestService accessRequestService) {
@@ -24,5 +23,4 @@ public class AccessRequestController {
     accessRequestService.handleAccessRequest(dto.email().trim(), dto.message());
     return ResponseEntity.ok().build();
   }
-
 }

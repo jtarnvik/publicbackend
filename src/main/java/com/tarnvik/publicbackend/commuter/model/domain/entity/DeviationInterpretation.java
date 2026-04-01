@@ -23,7 +23,6 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 public class DeviationInterpretation {
-
   @TableGenerator(name = "id_generator_deviation_interpretations", table = "id_gen", pkColumnName = "gen_name", valueColumnName = "gen_value",
     pkColumnValue = "deviation_interpretations_gen", initialValue = 10000, allocationSize = 1)
   @GeneratedValue(strategy = GenerationType.TABLE, generator = "id_generator_deviation_interpretations")

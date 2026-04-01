@@ -17,7 +17,6 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class AccessRequestService {
-
   private final AccessRequestRepository accessRequestRepository;
   private final PendingUserRepository pendingUserRepository;
   private final PushoverProvider pushoverProvider;

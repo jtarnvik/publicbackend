@@ -1,0 +1,25 @@
+<!DOCTYPE module PUBLIC
+        "-//Puppy Crawl//DTD Check Configuration 1.3//EN"
+        "http://www.puppycrawl.com/dtds/configuration_1_3.dtd">
+<module name="Checker">
+    <module name="TreeWalker">
+        <module name="EmptyLineSeparator">
+            <property name="allowMultipleEmptyLines" value="false"/>
+            <property name="allowMultipleEmptyLinesInsideClassMembers" value="false"/>
+            <property name="allowNoEmptyLineBetweenFields" value="true"/>
+        </module>
+        <module name="UnusedImports"/>
+        <module name="NeedBraces">
+            <property name="allowSingleLineStatement" value="false"/>
+        </module>
+    </module>
+    <module name="RegexpMultiline">
+        <property name="message" value="Blank line at start of method should be removed"/>
+        <property name="format" value="\{\s*[\r]?\n\s*[\r]?\n"/>
+    </module>
+    <module name="RegexpMultiline">
+        <property name="message" value="A blank line at the end of a block should be removed."/>
+        <property name="format" value="[\r]?\n\s*[\r]?\n\s*\}"/>
+        <property name="fileExtensions" value="java"/>
+    </module>
+</module>

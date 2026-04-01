@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 public class DeviationDao {
-
   private final DeviationInterpretationRepository deviationInterpretationRepository;
   private final DeviationInterpretationErrorRepository deviationInterpretationErrorRepository;
   private final UserHiddenDeviationRepository userHiddenDeviationRepository;

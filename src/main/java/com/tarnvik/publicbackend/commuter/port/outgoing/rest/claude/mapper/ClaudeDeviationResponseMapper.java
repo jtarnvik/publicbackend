@@ -10,16 +10,15 @@ import java.util.Optional;
 
 @Mapper(componentModel = "spring")
 public interface ClaudeDeviationResponseMapper {
-
   @Mapping(target = "fromDate", source = "from")
   @Mapping(target = "toDate", source = "to")
   DeviationResponse toDeviationResponse(ClaudeDeviationResponse claudeResponse);
 
   default LocalDate unwrapDate(Optional<LocalDate> optional) {
-    return optional != null ? optional.orElse(null) : null;
+    return optional.orElse(null);
   }
 
   default Boolean unwrapBoolean(Optional<Boolean> optional) {
-    return optional != null ? optional.orElse(null) : null;
+    return optional.orElse(null);
   }
 }

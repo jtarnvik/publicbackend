@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface UserHiddenDeviationRepository extends JpaRepository<UserHiddenDeviation, Long> {
-
   List<UserHiddenDeviation> findAllByAllowedUserId(Long allowedUserId);
 
   boolean existsByAllowedUserIdAndDeviationInterpretationId(Long allowedUserId, Long deviationInterpretationId);

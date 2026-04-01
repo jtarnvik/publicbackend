@@ -26,7 +26,6 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 public class UserHiddenDeviation {
-
   @TableGenerator(name = "id_generator_user_hidden_deviations", table = "id_gen", pkColumnName = "gen_name", valueColumnName = "gen_value",
     pkColumnValue = "user_hidden_deviations_gen", initialValue = 10000, allocationSize = 1)
   @GeneratedValue(strategy = GenerationType.TABLE, generator = "id_generator_user_hidden_deviations")

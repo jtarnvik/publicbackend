@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 @Service
 @RequiredArgsConstructor
 public class PendingUserService {
-
   private final PendingUserRepository pendingUserRepository;
 
   @Transactional

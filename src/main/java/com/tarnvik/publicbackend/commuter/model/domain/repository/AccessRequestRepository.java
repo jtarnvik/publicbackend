@@ -7,7 +7,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 
 public interface AccessRequestRepository extends JpaRepository<AccessRequest, Long> {
-
   Optional<AccessRequest> findByEmail(String email);
 
   @Transactional

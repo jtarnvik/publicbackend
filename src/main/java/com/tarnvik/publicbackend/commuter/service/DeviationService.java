@@ -32,7 +32,6 @@ import java.util.concurrent.Executors;
 @Service
 @RequiredArgsConstructor
 public class DeviationService {
-
   private static final int MAX_AI_ERRORS = 5;
   private static final int LOCK_HOURS = 24;
   private static final ExecutorService VIRTUAL_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();

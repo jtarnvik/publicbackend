@@ -16,7 +16,6 @@ import java.util.Set;
 
 @Component
 public class OidcRoleEnrichmentService implements OAuth2UserService<OidcUserRequest, OidcUser> {
-
   private final AllowedUserRepository allowedUserRepository;
   private final OidcUserService delegate = new OidcUserService();
 

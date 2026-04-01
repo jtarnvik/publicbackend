@@ -7,7 +7,6 @@ import java.time.format.DateTimeFormatter;
 
 @Component
 public class DateConverter {
-
   private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
   @DateFormat

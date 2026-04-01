@@ -16,7 +16,6 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class DeviationInterpretationCleanupJob {
-
   private static final int PURGE_AFTER_DAYS = 28;
 
   private final DeviationInterpretationRepository deviationInterpretationRepository;

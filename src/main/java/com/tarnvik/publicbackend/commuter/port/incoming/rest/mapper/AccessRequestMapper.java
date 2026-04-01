@@ -7,7 +7,6 @@ import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring", uses = DateConverter.class)
 public interface AccessRequestMapper {
-
   @Mapping(target = "createDate", source = "createDate", qualifiedBy = DateFormat.class)
   AccessRequestResponse toResponse(AccessRequest accessRequest);
 }

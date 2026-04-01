@@ -13,7 +13,6 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class AllowedUserService {
-
   private final AllowedUserRepository allowedUserRepository;
 
   @Transactional(readOnly = true)

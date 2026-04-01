@@ -19,7 +19,6 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 public class PendingUser {
-
   @TableGenerator(name = "id_generator_pending_user", table = "id_gen", pkColumnName = "gen_name", valueColumnName = "gen_value",
     pkColumnValue = "pending_user_gen", initialValue = 10000, allocationSize = 1)
   @GeneratedValue(strategy = GenerationType.TABLE, generator = "id_generator_pending_user")

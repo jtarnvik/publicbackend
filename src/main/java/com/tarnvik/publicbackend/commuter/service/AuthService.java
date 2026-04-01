@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class AuthService {
-
   private static final SettingsResponse DEFAULT_SETTINGS =
     new SettingsResponse("9091001000003715", "Skogslöparvägen");
 

@@ -7,7 +7,6 @@ import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring", uses = DateConverter.class)
 public interface AllowedUserMapper {
-
   @Mapping(target = "createDate", source = "createDate", qualifiedBy = DateFormat.class)
   AllowedUserResponse toResponse(AllowedUser allowedUser);
 }

@@ -30,7 +30,6 @@ import java.util.List;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
-
   private final AllowedUserService allowedUserService;
   private final PendingUserService pendingUserService;
   private final PushoverProvider pushoverProvider;

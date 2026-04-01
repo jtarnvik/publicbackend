@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/protected")
 @RequiredArgsConstructor
 public class SettingsController {
-
   private final UserSettingsService userSettingsService;
 
   @PutMapping("/settings")

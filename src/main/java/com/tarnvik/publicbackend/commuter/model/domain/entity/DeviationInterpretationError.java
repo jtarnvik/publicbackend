@@ -21,7 +21,6 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 public class DeviationInterpretationError {
-
   @TableGenerator(name = "id_generator_deviation_interpretation_errors", table = "id_gen", pkColumnName = "gen_name", valueColumnName = "gen_value",
     pkColumnValue = "deviation_interpretation_errors_gen", initialValue = 10000, allocationSize = 1)
   @GeneratedValue(strategy = GenerationType.TABLE, generator = "id_generator_deviation_interpretation_errors")

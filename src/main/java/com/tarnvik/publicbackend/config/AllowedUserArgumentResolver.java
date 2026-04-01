@@ -18,7 +18,6 @@ import org.springframework.web.server.ResponseStatusException;
 @Component
 @RequiredArgsConstructor
 public class AllowedUserArgumentResolver implements HandlerMethodArgumentResolver {
-
   private final AllowedUserRepository allowedUserRepository;
 
   @Override

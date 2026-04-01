@@ -22,7 +22,6 @@ import java.util.List;
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
 public class AdminController {
-
   private final AccessRequestService accessRequestService;
   private final AllowedUserService allowedUserService;
   private final AccessRequestMapper accessRequestMapper;

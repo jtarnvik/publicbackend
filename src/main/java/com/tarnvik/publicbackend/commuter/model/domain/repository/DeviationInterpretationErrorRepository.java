@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface DeviationInterpretationErrorRepository extends JpaRepository<DeviationInterpretationError, Long> {
-
   Optional<DeviationInterpretationError> findByHash(String hash);
 
   void deleteByHash(String hash);

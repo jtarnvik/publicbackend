@@ -21,7 +21,6 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 public class UserSettings {
-
   @TableGenerator(name = "id_generator_user_settings", table = "id_gen", pkColumnName = "gen_name", valueColumnName = "gen_value",
     pkColumnValue = "user_settings_gen", initialValue = 10000, allocationSize = 1)
   @GeneratedValue(strategy = GenerationType.TABLE, generator = "id_generator_user_settings")

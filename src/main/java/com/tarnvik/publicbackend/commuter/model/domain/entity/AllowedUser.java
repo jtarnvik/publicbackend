@@ -19,7 +19,6 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 public class AllowedUser {
-
   @TableGenerator(name = "id_generator_allowed_user", table = "id_gen", pkColumnName = "gen_name", valueColumnName = "gen_value",
     pkColumnValue = "allowed_user_gen", initialValue = 10000, allocationSize = 1)
   @GeneratedValue(strategy = GenerationType.TABLE, generator = "id_generator_allowed_user")

@@ -7,7 +7,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 
 public interface AllowedUserRepository extends JpaRepository<AllowedUser, Long> {
-
   Optional<AllowedUser> findByEmail(String email);
 
   @Transactional

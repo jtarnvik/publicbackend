@@ -13,14 +13,14 @@ import java.util.Optional;
 @AllArgsConstructor
 @Data
 public class ClaudeDeviationResponse {
-  private Optional<LocalDate> from;
-  private Optional<LocalDate> to;
-  private Optional<Boolean> accessibility;
-  private Optional<Boolean> delays;
-  private Optional<Boolean> cancelations;
-  private Optional<Boolean> duringCommute;
-  private Optional<Boolean> duringWeekend;
-  private Optional<Boolean> duringNight;
+  private Optional<LocalDate> from = Optional.empty();
+  private Optional<LocalDate> to = Optional.empty();
+  private Optional<Boolean> accessibility = Optional.empty();
+  private Optional<Boolean> delays = Optional.empty();
+  private Optional<Boolean> cancelations = Optional.empty();
+  private Optional<Boolean> duringCommute = Optional.empty();
+  private Optional<Boolean> duringWeekend = Optional.empty();
+  private Optional<Boolean> duringNight = Optional.empty();
   private Importance importance;
   private String interpretationNotes;
 }

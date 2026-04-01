@@ -9,7 +9,6 @@ import org.springframework.web.client.RestClient;
 @Slf4j
 @Component
 public class PushoverProvider {
-
   private final String apiToken;
   private final String userKey;
   private final RestClient restClient;
