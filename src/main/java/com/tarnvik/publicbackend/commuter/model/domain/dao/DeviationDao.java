@@ -4,7 +4,6 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.AllowedUser;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.DeviationInterpretation;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.DeviationInterpretationError;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.UserHiddenDeviation;
-import com.tarnvik.publicbackend.commuter.model.domain.repository.AllowedUserRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.DeviationInterpretationErrorRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.DeviationInterpretationRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.UserHiddenDeviationRepository;
@@ -20,15 +19,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DeviationDao {
 
-  private final AllowedUserRepository allowedUserRepository;
   private final DeviationInterpretationRepository deviationInterpretationRepository;
   private final DeviationInterpretationErrorRepository deviationInterpretationErrorRepository;
   private final UserHiddenDeviationRepository userHiddenDeviationRepository;
-
-  @Transactional(readOnly = true)
-  public Optional<AllowedUser> findUserByEmail(String email) {
-    return allowedUserRepository.findByEmail(email);
-  }
 
   @Transactional(readOnly = true)
   public Set<Long> findHiddenDeviationIds(Long userId) {

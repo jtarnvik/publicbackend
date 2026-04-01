@@ -40,10 +40,7 @@ public class DeviationService {
 
   private final ConcurrentHashMap<String, CompletableFuture<DeviationInterpretation>> inProgress = new ConcurrentHashMap<>();
 
-  public List<DeviationInterpretationResult> interpretDeviations(List<String> deviationTexts, String email) {
-    AllowedUser user = deviationDao.findUserByEmail(email)
-      .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
-
+  public List<DeviationInterpretationResult> interpretDeviations(List<String> deviationTexts, AllowedUser user) {
     Set<Long> hiddenIds = deviationDao.findHiddenDeviationIds(user.getId());
 
     return deviationTexts.stream()
@@ -62,9 +59,7 @@ public class DeviationService {
       .toList();
   }
 
-  public void hideDeviation(Long deviationId, String email) {
-    AllowedUser user = deviationDao.findUserByEmail(email)
-      .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+  public void hideDeviation(Long deviationId, AllowedUser user) {
     DeviationInterpretation interpretation = deviationDao.findInterpretationById(deviationId)
       .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     deviationDao.hideDeviationIfNotAlreadyHidden(user, interpretation);
