@@ -24,7 +24,7 @@
                              constraintName="uq_user_hidden_deviations_user_deviation"/>
         <addForeignKeyConstraint baseTableName="user_hidden_deviations"
                                  baseColumnNames="allowed_user_id"
-                                 referencedTableName="allowed_users"
+                                 referencedTableName="allowed_user"
                                  referencedColumnNames="id"
                                  constraintName="fk_user_hidden_deviations_allowed_user"
                                  onDelete="CASCADE"/>

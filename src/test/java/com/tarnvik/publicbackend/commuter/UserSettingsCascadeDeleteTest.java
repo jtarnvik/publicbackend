@@ -2,6 +2,7 @@ package com.tarnvik.publicbackend.commuter;
 
 import com.tarnvik.publicbackend.commuter.model.domain.repository.AllowedUserRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.UserSettingsRepository;
+import com.tarnvik.publicbackend.commuter.port.outgoing.rest.claude.ClaudeProvider;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.pushover.PushoverProvider;
 import com.tarnvik.publicbackend.commuter.service.AllowedUserService;
 import com.tarnvik.publicbackend.commuter.service.UserSettingsService;
@@ -34,6 +35,7 @@ class UserSettingsCascadeDeleteTest {
   @Autowired UserSettingsRepository userSettingsRepository;
 
   @MockitoBean PushoverProvider pushoverProvider;
+  @MockitoBean ClaudeProvider claudeProvider;
 
   @AfterEach
   void cleanup() {

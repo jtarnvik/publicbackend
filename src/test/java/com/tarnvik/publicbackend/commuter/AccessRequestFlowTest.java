@@ -4,6 +4,7 @@ import com.tarnvik.publicbackend.commuter.model.domain.repository.AccessRequestR
 import com.tarnvik.publicbackend.commuter.model.domain.repository.AllowedUserRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.PendingUserRepository;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.AccessRequestResponse;
+import com.tarnvik.publicbackend.commuter.port.outgoing.rest.claude.ClaudeProvider;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.pushover.PushoverProvider;
 import com.tarnvik.publicbackend.commuter.service.PendingUserService;
 import org.junit.jupiter.api.AfterEach;
@@ -45,6 +46,7 @@ class AccessRequestFlowTest {
   @Autowired AllowedUserRepository allowedUserRepository;
 
   @MockitoBean PushoverProvider pushoverProvider;
+  @MockitoBean ClaudeProvider claudeProvider;
 
   @AfterEach
   void cleanup() {
