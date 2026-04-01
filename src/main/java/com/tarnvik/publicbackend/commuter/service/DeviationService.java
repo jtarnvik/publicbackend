@@ -1,14 +1,10 @@
 package com.tarnvik.publicbackend.commuter.service;
 
 import com.tarnvik.publicbackend.commuter.model.domain.DeviationResponse;
+import com.tarnvik.publicbackend.commuter.model.domain.dao.DeviationDao;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.AllowedUser;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.DeviationInterpretation;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.DeviationInterpretationError;
-import com.tarnvik.publicbackend.commuter.model.domain.entity.UserHiddenDeviation;
-import com.tarnvik.publicbackend.commuter.model.domain.repository.AllowedUserRepository;
-import com.tarnvik.publicbackend.commuter.model.domain.repository.DeviationInterpretationErrorRepository;
-import com.tarnvik.publicbackend.commuter.model.domain.repository.DeviationInterpretationRepository;
-import com.tarnvik.publicbackend.commuter.model.domain.repository.UserHiddenDeviationRepository;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.DeviationAction;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.DeviationInterpretationResult;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.claude.ClaudeProvider;
@@ -17,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
@@ -27,7 +22,9 @@ import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 
 @Slf4j
 @Service
@@ -37,29 +34,25 @@ public class DeviationService {
   private static final int MAX_AI_ERRORS = 5;
   private static final int LOCK_HOURS = 24;
 
-  private final AllowedUserRepository allowedUserRepository;
-  private final DeviationInterpretationRepository deviationInterpretationRepository;
-  private final DeviationInterpretationErrorRepository deviationInterpretationErrorRepository;
-  private final UserHiddenDeviationRepository userHiddenDeviationRepository;
+  private final DeviationDao deviationDao;
   private final ClaudeProvider claudeProvider;
   private final PushoverProvider pushoverProvider;
 
-  @Transactional
+  private final ConcurrentHashMap<String, CompletableFuture<DeviationInterpretation>> inProgress = new ConcurrentHashMap<>();
+
   public List<DeviationInterpretationResult> interpretDeviations(List<String> deviationTexts, String email) {
-    AllowedUser user = allowedUserRepository.findByEmail(email)
+    AllowedUser user = deviationDao.findUserByEmail(email)
       .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
 
-    Set<Long> hiddenIds = userHiddenDeviationRepository.findAllByAllowedUserId(user.getId()).stream()
-      .map(hidden -> hidden.getDeviationInterpretation().getId())
-      .collect(Collectors.toSet());
+    Set<Long> hiddenIds = deviationDao.findHiddenDeviationIds(user.getId());
 
     return deviationTexts.stream()
       .map(text -> {
         String hash = sha256(text);
-        DeviationInterpretation existing = deviationInterpretationRepository.findByHash(hash).orElse(null);
+        DeviationInterpretation existing = deviationDao.findInterpretationByHash(hash).orElse(null);
         DeviationInterpretation interpretation = (existing != null && !existing.isAiError())
           ? existing
-          : resolveInterpretation(text, hash, existing);
+          : resolveWithConcurrencyControl(text, hash, existing);
         return new DeviationInterpretationResult(
           interpretation.getId(),
           interpretation.getImportance(),
@@ -69,57 +62,74 @@ public class DeviationService {
       .toList();
   }
 
-  @Transactional
   public void hideDeviation(Long deviationId, String email) {
-    AllowedUser user = allowedUserRepository.findByEmail(email)
+    AllowedUser user = deviationDao.findUserByEmail(email)
       .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
-    DeviationInterpretation interpretation = deviationInterpretationRepository.findById(deviationId)
+    DeviationInterpretation interpretation = deviationDao.findInterpretationById(deviationId)
       .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    deviationDao.hideDeviationIfNotAlreadyHidden(user, interpretation);
+  }
 
-    if (!userHiddenDeviationRepository.existsByAllowedUserIdAndDeviationInterpretationId(user.getId(), deviationId)) {
-      userHiddenDeviationRepository.save(new UserHiddenDeviation(user, interpretation));
+  private DeviationInterpretation resolveWithConcurrencyControl(String text, String hash, DeviationInterpretation existing) {
+    CompletableFuture<DeviationInterpretation> myFuture = new CompletableFuture<>();
+    CompletableFuture<DeviationInterpretation> existingFuture = inProgress.putIfAbsent(hash, myFuture);
+
+    if (existingFuture != null) {
+      try {
+        return existingFuture.get();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException("Interrupted while waiting for concurrent AI interpretation", e);
+      } catch (ExecutionException e) {
+        log.warn("Concurrent AI interpretation failed for hash {}, reading result from db", hash);
+        return deviationDao.findInterpretationByHash(hash)
+          .orElseGet(() -> deviationDao.storeFailedInterpretation(
+            DeviationInterpretation.withAiError(text, hash),
+            new DeviationInterpretationError(hash)));
+      }
+    }
+
+    try {
+      DeviationInterpretation result = resolveInterpretation(text, hash, existing);
+      myFuture.complete(result);
+      return result;
+    } catch (Exception e) {
+      myFuture.completeExceptionally(e);
+      throw e;
+    } finally {
+      inProgress.remove(hash, myFuture);
     }
   }
 
   private DeviationInterpretation resolveInterpretation(String text, String hash, DeviationInterpretation existing) {
-    DeviationInterpretationError errorTracker = deviationInterpretationErrorRepository.findByHash(hash).orElse(null);
+    DeviationInterpretationError errorTracker = deviationDao.findErrorTracker(hash).orElse(null);
 
     if (errorTracker != null && errorTracker.isLocked()) {
       return existing != null ? existing
-        : deviationInterpretationRepository.save(DeviationInterpretation.withAiError(text, hash));
+        : deviationDao.storeFailedInterpretation(DeviationInterpretation.withAiError(text, hash), errorTracker);
     }
 
     try {
       DeviationResponse response = claudeProvider.interpretDeviation(text);
-      if (errorTracker != null) {
-        deviationInterpretationErrorRepository.delete(errorTracker);
-      }
       if (existing != null) {
         existing.updateFrom(response);
-        return deviationInterpretationRepository.save(existing);
+        return deviationDao.storeSuccessfulInterpretation(existing, errorTracker);
       }
-      return deviationInterpretationRepository.save(DeviationInterpretation.from(text, hash, response));
+      return deviationDao.storeSuccessfulInterpretation(DeviationInterpretation.from(text, hash, response), errorTracker);
     } catch (Exception e) {
       log.warn("AI interpretation failed for hash {}: {}", hash, e.getMessage());
-      recordError(hash, errorTracker);
-      if (existing != null) {
-        return existing;
+      DeviationInterpretationError tracker = errorTracker != null ? errorTracker : new DeviationInterpretationError(hash);
+      tracker.setErrorCount(tracker.getErrorCount() + 1);
+      tracker.setLastAttemptAt(LocalDateTime.now());
+      if (tracker.getErrorCount() >= MAX_AI_ERRORS) {
+        tracker.setLockedUntil(LocalDateTime.now().plusHours(LOCK_HOURS));
+        if (tracker.getErrorCount() == MAX_AI_ERRORS) {
+          pushoverProvider.sendAiInterpretationErrorNotification(hash.substring(0, 8), tracker.getErrorCount());
+        }
       }
-      return deviationInterpretationRepository.save(DeviationInterpretation.withAiError(text, hash));
+      DeviationInterpretation errorEntity = existing != null ? existing : DeviationInterpretation.withAiError(text, hash);
+      return deviationDao.storeFailedInterpretation(errorEntity, tracker);
     }
-  }
-
-  private void recordError(String hash, DeviationInterpretationError existing) {
-    DeviationInterpretationError tracker = existing != null ? existing : new DeviationInterpretationError(hash);
-    tracker.setErrorCount(tracker.getErrorCount() + 1);
-    tracker.setLastAttemptAt(LocalDateTime.now());
-    if (tracker.getErrorCount() >= MAX_AI_ERRORS) {
-      tracker.setLockedUntil(LocalDateTime.now().plusHours(LOCK_HOURS));
-      if (tracker.getErrorCount() == MAX_AI_ERRORS) {
-        pushoverProvider.sendAiInterpretationErrorNotification(hash.substring(0, 8), tracker.getErrorCount());
-      }
-    }
-    deviationInterpretationErrorRepository.save(tracker);
   }
 
   private DeviationAction determineAction(DeviationInterpretation interpretation, Set<Long> hiddenIds) {
