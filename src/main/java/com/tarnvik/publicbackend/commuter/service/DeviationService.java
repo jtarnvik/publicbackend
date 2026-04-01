@@ -47,18 +47,7 @@ public class DeviationService {
     Set<Long> hiddenIds = deviationDao.findHiddenDeviationIds(user.getId());
 
     List<CompletableFuture<DeviationInterpretationResult>> futures = deviationTexts.stream()
-      .map(text -> CompletableFuture.supplyAsync(() -> {
-        String hash = sha256(text);
-        DeviationInterpretation existing = deviationDao.findInterpretationByHash(hash).orElse(null);
-        DeviationInterpretation interpretation = (existing != null && !existing.isAiError())
-          ? existing
-          : resolveWithConcurrencyControl(text, hash, existing);
-        return new DeviationInterpretationResult(
-          interpretation.getId(),
-          interpretation.getImportance(),
-          determineAction(interpretation, hiddenIds)
-        );
-      }, VIRTUAL_EXECUTOR))
+      .map(text -> CompletableFuture.supplyAsync(() -> interpretSingle(text, hiddenIds), VIRTUAL_EXECUTOR))
       .toList();
 
     return futures.stream()
@@ -70,6 +59,22 @@ public class DeviationService {
     DeviationInterpretation interpretation = deviationDao.findInterpretationById(deviationId)
       .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     deviationDao.hideDeviationIfNotAlreadyHidden(user, interpretation);
+  }
+
+  private DeviationInterpretationResult interpretSingle(String text, Set<Long> hiddenIds) {
+    String hash = sha256(text);
+    DeviationInterpretation existing = deviationDao.findInterpretationByHash(hash).orElse(null);
+    DeviationInterpretation interpretation;
+    if (existing != null && !existing.isAiError()) {
+      interpretation = existing;
+    } else {
+      interpretation = resolveWithConcurrencyControl(text, hash, existing);
+    }
+    return new DeviationInterpretationResult(
+      interpretation.getId(),
+      interpretation.getImportance(),
+      determineAction(interpretation, hiddenIds)
+    );
   }
 
   private DeviationInterpretation resolveWithConcurrencyControl(String text, String hash, DeviationInterpretation existing) {
@@ -107,8 +112,10 @@ public class DeviationService {
     DeviationInterpretationError errorTracker = deviationDao.findErrorTracker(hash).orElse(null);
 
     if (errorTracker != null && errorTracker.isLocked()) {
-      return existing != null ? existing
-        : deviationDao.storeFailedInterpretation(DeviationInterpretation.withAiError(text, hash), errorTracker);
+      if (existing != null) {
+        return existing;
+      }
+      return deviationDao.storeFailedInterpretation(DeviationInterpretation.withAiError(text, hash), errorTracker);
     }
 
     try {
@@ -121,16 +128,20 @@ public class DeviationService {
     } catch (Exception e) {
       log.warn("AI interpretation failed for hash {}: {}", hash, e.getMessage());
       DeviationInterpretationError tracker = errorTracker != null ? errorTracker : new DeviationInterpretationError(hash);
-      tracker.setErrorCount(tracker.getErrorCount() + 1);
-      tracker.setLastAttemptAt(LocalDateTime.now());
-      if (tracker.getErrorCount() >= MAX_AI_ERRORS) {
-        tracker.setLockedUntil(LocalDateTime.now().plusHours(LOCK_HOURS));
-        if (tracker.getErrorCount() == MAX_AI_ERRORS) {
-          pushoverProvider.sendAiInterpretationErrorNotification(hash.substring(0, 8), tracker.getErrorCount());
-        }
-      }
+      recordAiError(tracker, hash);
       DeviationInterpretation errorEntity = existing != null ? existing : DeviationInterpretation.withAiError(text, hash);
       return deviationDao.storeFailedInterpretation(errorEntity, tracker);
+    }
+  }
+
+  private void recordAiError(DeviationInterpretationError tracker, String hash) {
+    tracker.setErrorCount(tracker.getErrorCount() + 1);
+    tracker.setLastAttemptAt(LocalDateTime.now());
+    if (tracker.getErrorCount() >= MAX_AI_ERRORS) {
+      tracker.setLockedUntil(LocalDateTime.now().plusHours(LOCK_HOURS));
+      if (tracker.getErrorCount() == MAX_AI_ERRORS) {
+        pushoverProvider.sendAiInterpretationErrorNotification(hash.substring(0, 8), tracker.getErrorCount());
+      }
     }
   }
 
