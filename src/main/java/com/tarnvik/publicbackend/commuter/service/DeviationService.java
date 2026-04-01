@@ -25,6 +25,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Slf4j
 @Service
@@ -33,6 +35,7 @@ public class DeviationService {
 
   private static final int MAX_AI_ERRORS = 5;
   private static final int LOCK_HOURS = 24;
+  private static final ExecutorService VIRTUAL_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
   private final DeviationDao deviationDao;
   private final ClaudeProvider claudeProvider;
@@ -43,8 +46,8 @@ public class DeviationService {
   public List<DeviationInterpretationResult> interpretDeviations(List<String> deviationTexts, AllowedUser user) {
     Set<Long> hiddenIds = deviationDao.findHiddenDeviationIds(user.getId());
 
-    return deviationTexts.stream()
-      .map(text -> {
+    List<CompletableFuture<DeviationInterpretationResult>> futures = deviationTexts.stream()
+      .map(text -> CompletableFuture.supplyAsync(() -> {
         String hash = sha256(text);
         DeviationInterpretation existing = deviationDao.findInterpretationByHash(hash).orElse(null);
         DeviationInterpretation interpretation = (existing != null && !existing.isAiError())
@@ -55,7 +58,11 @@ public class DeviationService {
           interpretation.getImportance(),
           determineAction(interpretation, hiddenIds)
         );
-      })
+      }, VIRTUAL_EXECUTOR))
+      .toList();
+
+    return futures.stream()
+      .map(CompletableFuture::join)
       .toList();
   }
 
