@@ -71,7 +71,7 @@ class AccessRequestFlowTest {
       .andReturn().getResponse().getContentAsString();
 
     List<AccessRequestResponse> requests = objectMapper.readValue(listJson, new TypeReference<>() {});
-    long id = requests.get(0).id();
+    long id = requests.getFirst().id();
 
     mockMvc.perform(delete("/api/admin/access-requests/" + id))
       .andExpect(status().isOk());
@@ -118,7 +118,7 @@ class AccessRequestFlowTest {
 
     // Approve the request
     List<AccessRequestResponse> requests = objectMapper.readValue(listJson, new TypeReference<>() {});
-    long id = requests.get(0).id();
+    long id = requests.getFirst().id();
 
     mockMvc.perform(post("/api/admin/access-requests/" + id + "/approve"))
       .andExpect(status().isOk());

@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
@@ -69,7 +70,7 @@ public class SecurityConfig {
         .invalidateHttpSession(true)
         .deleteCookies("JSESSIONID")
       )
-      .csrf(csrf -> csrf.disable());
+      .csrf(AbstractHttpConfigurer::disable);
     return http.build();
   }
 
@@ -88,13 +89,14 @@ public class SecurityConfig {
 
   @Bean
   public AuthenticationSuccessHandler authenticationSuccessHandler() {
+    //noinspection NullableProblems
     return new AuthenticationSuccessHandler() {
       @Override
       public void onAuthenticationSuccess(HttpServletRequest request,
                                           HttpServletResponse response,
                                           Authentication authentication) throws IOException {
         OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
-        String email = oauth2User.getAttribute("email");
+        @SuppressWarnings("DataFlowIssue") String email = oauth2User.getAttribute("email");
 
         if (allowedUserService.isEmailAllowed(email)) {
           response.sendRedirect(frontendUrl + "/sl-dashboard/");
@@ -103,7 +105,7 @@ public class SecurityConfig {
           pendingUserService.recordLoginAttempt(email, name);
           pushoverProvider.sendDeniedLoginNotification(email, name);
           request.getSession().invalidate();
-          String encodedEmail = URLEncoder.encode(email, StandardCharsets.UTF_8);
+          @SuppressWarnings("DataFlowIssue") String encodedEmail = URLEncoder.encode(email, StandardCharsets.UTF_8);
           response.sendRedirect(frontendUrl + "/sl-dashboard/#/denied?email=" + encodedEmail);
         }
       }

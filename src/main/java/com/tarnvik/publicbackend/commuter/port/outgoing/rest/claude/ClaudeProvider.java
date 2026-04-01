@@ -59,7 +59,7 @@ public class ClaudeProvider {
       .build();
 
     StructuredMessage<ClaudeDeviationResponse> response = client.messages().create(params);
-    ClaudeDeviationResponse claudeResponse = response.content().get(0).asText().text();
+    ClaudeDeviationResponse claudeResponse = response.content().getFirst().asText().text();
     return mapper.toDeviationResponse(claudeResponse);
   }
 }
