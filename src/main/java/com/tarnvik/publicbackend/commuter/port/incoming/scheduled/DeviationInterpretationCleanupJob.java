@@ -1,6 +1,8 @@
 package com.tarnvik.publicbackend.commuter.port.incoming.scheduled;
 
+import com.tarnvik.publicbackend.commuter.model.domain.entity.DeviationHistory;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.DeviationInterpretation;
+import com.tarnvik.publicbackend.commuter.model.domain.repository.DeviationHistoryRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.DeviationInterpretationErrorRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.DeviationInterpretationRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ public class DeviationInterpretationCleanupJob {
 
   private final DeviationInterpretationRepository deviationInterpretationRepository;
   private final DeviationInterpretationErrorRepository deviationInterpretationErrorRepository;
+  private final DeviationHistoryRepository deviationHistoryRepository;
 
   @Scheduled(cron = "0 0 0 * * *")
   @Transactional
@@ -31,10 +34,13 @@ public class DeviationInterpretationCleanupJob {
       return;
     }
 
+    List<DeviationHistory> history = expired.stream().map(DeviationHistory::from).toList();
+    deviationHistoryRepository.saveAll(history);
+
     List<String> expiredHashes = expired.stream().map(DeviationInterpretation::getHash).toList();
     deviationInterpretationErrorRepository.deleteAllByHashIn(expiredHashes);
     deviationInterpretationRepository.deleteAll(expired);
 
-    log.info("Purged {} expired deviation interpretations", expired.size());
+    log.info("Archived {} expired deviation interpretations to history", expired.size());
   }
 }

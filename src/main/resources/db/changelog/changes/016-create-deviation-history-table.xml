@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="016-1" author="jesper">
+        <createTable tableName="deviation_history">
+            <column name="id" type="bigint">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="hash" type="varchar(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deviation_text" type="varchar(2000)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="from_date" type="date"/>
+            <column name="to_date" type="date"/>
+            <column name="accessibility" type="boolean"/>
+            <column name="delays" type="boolean"/>
+            <column name="cancelations" type="boolean"/>
+            <column name="during_commute" type="boolean"/>
+            <column name="during_weekend" type="boolean"/>
+            <column name="during_night" type="boolean"/>
+            <column name="importance" type="varchar(10)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="interpretation_notes" type="varchar(2000)"/>
+            <column name="ai_error" type="boolean">
+                <constraints nullable="false"/>
+            </column>
+            <column name="original_create_date" type="datetime">
+                <constraints nullable="false"/>
+            </column>
+            <column name="create_date" type="datetime"/>
+            <column name="latest_update" type="datetime"/>
+        </createTable>
+        <sql dbms="postgresql">ALTER TABLE deviation_history ENABLE ROW LEVEL SECURITY;</sql>
+    </changeSet>
+
+    <changeSet id="016-2" author="jesper">
+        <insert tableName="id_gen">
+            <column name="id" valueNumeric="8"/>
+            <column name="gen_name" value="deviation_history_gen"/>
+            <column name="gen_value" valueNumeric="10000"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

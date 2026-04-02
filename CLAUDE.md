@@ -10,7 +10,7 @@ This file provides context for AI-assisted development of the `publicbackend` pr
 
 ## Project Overview
 
-Personal Stockholm commuter dashboard backend. Handles Google OAuth2 authentication, user management (access requests, allowed users), and settings persistence. Planned features include proxying SL Trafiklab APIs and parsing deviation messages via the Claude API. Serves the developer and a few friends.
+Personal Stockholm commuter dashboard backend. Handles Google OAuth2 authentication, user management (access requests, allowed users), settings persistence, and AI interpretation of SL deviation messages via the Claude API. Serves the developer and a few friends.
 
 - **Backend:** Spring Boot 4.0.4 (Java 21)
 - **Frontend:** React SPA on GitHub Pages at `https://jtarnvik.github.io/sl-dashboard/`
@@ -101,6 +101,7 @@ Authentication flow:
 | `DB_USERNAME` | `postgres.<project-ref>` |
 | `DB_PASSWORD` | Supabase database password |
 | `FRONTEND_URL` | `https://jtarnvik.github.io` |
+| `ANTHROPIC_API_KEY` | API key for Claude AI deviation interpretation |
 
 ### Local (`application-local.properties`, never committed)
 ```properties
@@ -112,6 +113,7 @@ spring.datasource.password=<value>
 spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
 app.allowed-emails=<comma separated emails>
 app.frontend-url=http://localhost:5173
+anthropic.api-key=<value>
 ```
 
 ---
@@ -124,17 +126,23 @@ spring-boot-starter-data-jpa
 spring-boot-starter-security
 spring-boot-starter-security-oauth2-client
 spring-boot-starter-webmvc
+spring-boot-starter-validation
 lombok
+org.mapstruct:mapstruct
 
 <!-- Database -->
 spring-boot-liquibase                          <!-- SB4 autoconfiguration module -->
 org.liquibase:liquibase-core                   <!-- Liquibase classes -->
 org.postgresql:postgresql (runtime)
 com.mysql:mysql-connector-j (runtime)
+com.h2database:h2 (runtime, test profile)
 
 <!-- Session -->
 spring-boot-session-jdbc                       <!-- SB4 autoconfiguration module -->
 org.springframework.session:spring-session-jdbc
+
+<!-- AI -->
+com.anthropic:anthropic-java
 ```
 
 ---
@@ -199,12 +207,50 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 | GET | `/api/auth/me` | Optional | Returns user info (with settings) or 401 |
 | POST | `/api/auth/logout` | Optional | Clears session and cookie |
 | PUT | `/api/protected/settings` | User | Save stop point settings |
+| POST | `/api/protected/deviations/interpret` | User | Interpret a list of deviation texts via Claude AI |
+| POST | `/api/protected/deviations/{id}/hide` | User | Hide a deviation by its DB id |
 | GET | `/api/admin/access-requests/count` | Admin | Count pending access requests |
 | GET | `/api/admin/access-requests` | Admin | List pending access requests |
 | POST | `/api/admin/access-requests/{id}/approve` | Admin | Approve an access request |
 | DELETE | `/api/admin/access-requests/{id}` | Admin | Reject/delete an access request |
 | GET | `/api/admin/users` | Admin | List allowed users |
 | DELETE | `/api/admin/users/{id}` | Admin | Delete an allowed user |
+
+---
+
+## Scheduled Jobs
+
+Both jobs run at midnight daily (`0 0 0 * * *`). Live in `{{BASE_PACKAGE}}.port.incoming.scheduled`.
+
+| Class | What it does |
+|---|---|
+| `PendingUserCleanupJob` | Deletes `pending_user` rows older than 7 days (users who failed OAuth2 login and never requested access) |
+| `DeviationInterpretationCleanupJob` | Archives `deviation_interpretations` rows older than 28 days to `deviation_history`, then deletes them along with their `deviation_interpretation_errors` rows |
+
+---
+
+## AI Deviation Interpretation
+
+Deviation texts from the frontend are interpreted by Claude AI and cached in the database.
+
+**Flow:**
+1. Frontend POSTs a list of deviation texts to `/api/protected/deviations/interpret`
+2. Each text is SHA-256 hashed and looked up in `deviation_interpretations`
+3. Cache hit with no error → use existing result
+4. Cache miss or AI error → call Claude API (concurrently via virtual threads)
+5. Result returned: DB id, importance (`LOW`/`MEDIUM`/`HIGH`/`UNKNOWN`), and action
+
+**Actions returned:**
+- `SHOWN` — display normally
+- `HIDDEN_ACCESSIBILITY` — deviation only concerns accessibility (elevators, escalators)
+- `HIDDEN_BY_USER` — user previously hid this deviation
+- `UNKNOWN` — AI interpretation failed
+
+**Error handling:** Repeated failures for the same hash are tracked in `deviation_interpretation_errors`. After 5 failures the hash is locked for 24 hours and a Pushover notification is sent.
+
+**Concurrency:** A `ConcurrentHashMap<String, CompletableFuture<DeviationInterpretation>>` keyed by hash ensures only one Claude call per unique deviation text even under concurrent requests.
+
+**`AllowedUser` injection:** Controllers receive `AllowedUser` as a method parameter resolved by `AllowedUserArgumentResolver` (registered in `WebMvcConfig`). It looks up the user by email from the `OAuth2User` principal and throws 401 if not found.
 
 ---
 
