@@ -255,6 +255,16 @@ Deviation texts from the frontend are interpreted by Claude AI and cached in the
 
 ---
 
+## Integration Tests
+
+Tests use `@SpringBootTest` + `@AutoConfigureMockMvc` + `@ActiveProfiles("test")` with an H2 in-memory database. Liquibase runs all changesets on startup, including seed data.
+
+**Seeded users in H2:** Changeset 004 inserts `jtarnvik@gmail.com` and `htarnvik@gmail.com` into `allowed_user`. Changeset 008 sets `jtarnvik@gmail.com` to role `ADMIN`. Tests that check admin counts or need a clean user state must account for this — use a `@BeforeEach` to temporarily demote pre-existing admins and restore them in `@AfterEach`. See `DeleteAccountTest` for the pattern.
+
+**OAuth2 principal:** Endpoints that use `AllowedUserArgumentResolver` (i.e. receive `AllowedUser` as a controller parameter) require a real `OAuth2User` principal — `@WithMockUser` is insufficient. Use `oauth2Login().attributes(attrs -> attrs.put("email", email))` as a MockMvc post-processor.
+
+---
+
 ## Local Development
 
 1. Ensure MySQL is running at `192.168.1.204:3306` with database `commuter`
