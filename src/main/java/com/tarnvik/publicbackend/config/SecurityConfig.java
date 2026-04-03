@@ -68,7 +68,7 @@ public class SecurityConfig {
         .logoutUrl("/api/auth/logout")
         .logoutSuccessUrl("/ping")
         .invalidateHttpSession(true)
-        .deleteCookies("JSESSIONID")
+        .deleteCookies("SESSION")
       )
       .csrf(AbstractHttpConfigurer::disable);
     return http.build();
@@ -116,6 +116,8 @@ public class SecurityConfig {
   public CookieSerializer cookieSerializer() {
     DefaultCookieSerializer serializer = new DefaultCookieSerializer();
     serializer.setCookieMaxAge(30 * 24 * 60 * 60); // 30 days in seconds
+    serializer.setSameSite("None");
+    serializer.setUseSecureCookie(true);
     return serializer;
   }
 }
