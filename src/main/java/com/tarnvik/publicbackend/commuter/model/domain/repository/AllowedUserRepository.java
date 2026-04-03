@@ -9,6 +9,8 @@ import java.util.Optional;
 public interface AllowedUserRepository extends JpaRepository<AllowedUser, Long> {
   Optional<AllowedUser> findByEmail(String email);
 
+  long countByRole(String role);
+
   @Transactional
   void deleteByEmail(String email);
 }

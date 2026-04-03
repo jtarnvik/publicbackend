@@ -44,4 +44,12 @@ public class AllowedUserService {
     }
     allowedUserRepository.delete(user);
   }
+
+  @Transactional
+  public void deleteOwnAccount(AllowedUser user) {
+    if ("ADMIN".equals(user.getRole()) && allowedUserRepository.countByRole("ADMIN") <= 1) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot delete the last administrator account");
+    }
+    allowedUserRepository.delete(user);
+  }
 }
