@@ -102,6 +102,8 @@ Authentication flow:
 | `DB_PASSWORD` | Supabase database password |
 | `FRONTEND_URL` | `https://jtarnvik.github.io` |
 | `ANTHROPIC_API_KEY` | API key for Claude AI deviation interpretation |
+| `PUSHOVER_API_TOKEN` | Pushover app token for error notifications |
+| `PUSHOVER_USER_KEY` | Pushover user key for error notifications |
 
 ### Local (`application-local.properties`, never committed)
 ```properties
