@@ -72,7 +72,9 @@ public class DeviationService {
     return new DeviationInterpretationResult(
       interpretation.getId(),
       interpretation.getImportance(),
-      determineAction(interpretation, hiddenIds)
+      determineAction(interpretation, hiddenIds),
+      interpretation.getDelays(),
+      interpretation.getCancelations()
     );
   }
 
