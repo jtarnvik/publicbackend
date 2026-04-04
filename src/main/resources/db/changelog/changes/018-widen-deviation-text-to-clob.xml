@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="018-1" author="jesper">
+        <modifyDataType tableName="deviation_interpretations" columnName="deviation_text" newDataType="CLOB"/>
+    </changeSet>
+
+    <changeSet id="018-2" author="jesper">
+        <modifyDataType tableName="deviation_history" columnName="deviation_text" newDataType="CLOB"/>
+    </changeSet>
+
+</databaseChangeLog>

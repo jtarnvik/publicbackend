@@ -22,5 +22,6 @@
     <include file="db/changelog/changes/015-create-deviation-interpretation-errors-table.xml"/>
     <include file="db/changelog/changes/016-create-deviation-history-table.xml"/>
     <include file="db/changelog/changes/017-remove-helen-tarnvik-user.xml"/>
+    <include file="db/changelog/changes/018-widen-deviation-text-to-clob.xml"/>
 
 </databaseChangeLog>
