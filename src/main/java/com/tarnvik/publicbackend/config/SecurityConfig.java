@@ -99,14 +99,14 @@ public class SecurityConfig {
         @SuppressWarnings("DataFlowIssue") String email = oauth2User.getAttribute("email");
 
         if (allowedUserService.isEmailAllowed(email)) {
-          response.sendRedirect(frontendUrl + "/sl-dashboard/");
+          response.sendRedirect(frontendUrl + "/");
         } else {
           String name = oauth2User.getAttribute("name");
           pendingUserService.recordLoginAttempt(email, name);
           pushoverProvider.sendDeniedLoginNotification(email, name);
           request.getSession().invalidate();
           @SuppressWarnings("DataFlowIssue") String encodedEmail = URLEncoder.encode(email, StandardCharsets.UTF_8);
-          response.sendRedirect(frontendUrl + "/sl-dashboard/#/denied?email=" + encodedEmail);
+          response.sendRedirect(frontendUrl + "/#/denied?email=" + encodedEmail);
         }
       }
     };
