@@ -5,6 +5,7 @@ import com.tarnvik.publicbackend.commuter.service.AllowedUserService;
 import com.tarnvik.publicbackend.commuter.service.PendingUserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -69,6 +70,12 @@ public class SecurityConfig {
         .logoutSuccessUrl("/ping")
         .invalidateHttpSession(true)
         .deleteCookies("SESSION")
+      )
+      .exceptionHandling(ex -> ex
+        .defaultAuthenticationEntryPointFor(
+          (request, response, authException) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED),
+          PathPatternRequestMatcher.withDefaults().matcher("/api/**")
+        )
       )
       .csrf(AbstractHttpConfigurer::disable);
     return http.build();
