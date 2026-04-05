@@ -23,7 +23,7 @@ public class SettingsController {
     @AuthenticationPrincipal OAuth2User user,
     @Valid @RequestBody SettingsRequest request
   ) {
-    userSettingsService.saveSettings(user.getAttribute("email"), request.stopPointId(), request.stopPointName());
+    userSettingsService.saveSettings(user.getAttribute("email"), request.stopPointId(), request.stopPointName(), request.useAiInterpretation());
     return ResponseEntity.ok().build();
   }
 }

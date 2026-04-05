@@ -38,6 +38,9 @@ public class UserSettings {
   @Column(name = "stop_point_name", nullable = false)
   private String stopPointName;
 
+  @Column(name = "use_ai_interpretation", nullable = false)
+  private boolean useAiInterpretation;
+
   @CreationTimestamp
   @Column(name = "create_date")
   private LocalDateTime createDate;

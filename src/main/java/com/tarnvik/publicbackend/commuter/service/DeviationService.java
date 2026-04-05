@@ -4,6 +4,7 @@ import com.tarnvik.publicbackend.commuter.model.domain.DeviationResponse;
 import com.tarnvik.publicbackend.commuter.model.domain.dao.DeviationDao;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.AllowedUser;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.DeviationInterpretation;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.UserSettings;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.DeviationInterpretationError;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.Importance;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.DeviationAction;
@@ -48,10 +49,21 @@ public class DeviationService {
   private final DeviationDao deviationDao;
   private final ClaudeProvider claudeProvider;
   private final PushoverProvider pushoverProvider;
+  private final UserSettingsService userSettingsService;
 
   private final ConcurrentHashMap<String, CompletableFuture<DeviationInterpretation>> inProgress = new ConcurrentHashMap<>();
 
   public List<DeviationInterpretationResult> interpretDeviations(List<String> deviationTexts, AllowedUser user) {
+    boolean useAi = userSettingsService.findByEmail(user.getEmail())
+      .map(UserSettings::isUseAiInterpretation)
+      .orElse(true);
+
+    if (!useAi) {
+      return deviationTexts.stream()
+        .map(text -> new DeviationInterpretationResult(null, Importance.UNKNOWN, DeviationAction.SHOWN, null, null))
+        .toList();
+    }
+
     Set<Long> hiddenIds = deviationDao.findHiddenDeviationIds(user.getId());
 
     List<CompletableFuture<DeviationInterpretationResult>> futures = deviationTexts.stream()

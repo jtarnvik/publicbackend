@@ -24,7 +24,7 @@ public class UserSettingsService {
   }
 
   @Transactional
-  public void saveSettings(String email, String stopPointId, String stopPointName) {
+  public void saveSettings(String email, String stopPointId, String stopPointName, boolean useAiInterpretation) {
     AllowedUser allowedUser = allowedUserRepository.findByEmail(email)
       .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN));
 
@@ -33,6 +33,7 @@ public class UserSettingsService {
     settings.setAllowedUser(allowedUser);
     settings.setStopPointId(stopPointId);
     settings.setStopPointName(stopPointName);
+    settings.setUseAiInterpretation(useAiInterpretation);
     userSettingsRepository.save(settings);
   }
 }
