@@ -5,6 +5,7 @@ import com.tarnvik.publicbackend.commuter.model.domain.dao.DeviationDao;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.AllowedUser;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.DeviationInterpretation;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.DeviationInterpretationError;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.Importance;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.DeviationAction;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.DeviationInterpretationResult;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.claude.ClaudeProvider;
@@ -21,6 +22,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,6 +37,13 @@ public class DeviationService {
   private static final int MAX_AI_ERRORS = 5;
   private static final int LOCK_HOURS = 24;
   private static final ExecutorService VIRTUAL_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
+
+  private static final Map<String, DeviationInterpretationResult> HARDCODED_INTERPRETATIONS = Map.of(
+    "inställd",  new DeviationInterpretationResult(null, Importance.HIGH,   DeviationAction.SHOWN, false, true),
+    "inställt",  new DeviationInterpretationResult(null, Importance.HIGH,   DeviationAction.SHOWN, false, true),
+    "försenad",  new DeviationInterpretationResult(null, Importance.MEDIUM, DeviationAction.SHOWN, true,  false),
+    "försenat",  new DeviationInterpretationResult(null, Importance.MEDIUM, DeviationAction.SHOWN, true,  false)
+  );
 
   private final DeviationDao deviationDao;
   private final ClaudeProvider claudeProvider;
@@ -61,6 +70,10 @@ public class DeviationService {
   }
 
   private DeviationInterpretationResult interpretSingle(String text, Set<Long> hiddenIds) {
+    DeviationInterpretationResult hardcoded = HARDCODED_INTERPRETATIONS.get(text.strip().toLowerCase());
+    if (hardcoded != null) {
+      return hardcoded;
+    }
     String hash = sha256(text);
     DeviationInterpretation existing = deviationDao.findInterpretationByHash(hash).orElse(null);
     DeviationInterpretation interpretation;
