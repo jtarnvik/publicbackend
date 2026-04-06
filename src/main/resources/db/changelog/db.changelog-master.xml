@@ -25,5 +25,6 @@
     <include file="db/changelog/changes/018-widen-deviation-text-to-clob.xml"/>
     <include file="db/changelog/changes/019-add-use-ai-interpretation-to-user-settings.xml"/>
     <include file="db/changelog/changes/020-create-shared-route-table.xml"/>
+    <include file="db/changelog/changes/021-create-statistics-table.xml"/>
 
 </databaseChangeLog>

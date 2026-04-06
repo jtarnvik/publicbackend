@@ -7,6 +7,7 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.DeviationInterpret
 import com.tarnvik.publicbackend.commuter.model.domain.entity.UserSettings;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.DeviationInterpretationError;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.Importance;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.StatName;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.DeviationAction;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.DeviationInterpretationResult;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.claude.ClaudeProvider;
@@ -50,6 +51,7 @@ public class DeviationService {
   private final ClaudeProvider claudeProvider;
   private final PushoverProvider pushoverProvider;
   private final UserSettingsService userSettingsService;
+  private final StatisticsService statisticsService;
 
   private final ConcurrentHashMap<String, CompletableFuture<DeviationInterpretation>> inProgress = new ConcurrentHashMap<>();
 
@@ -145,6 +147,7 @@ public class DeviationService {
     }
 
     try {
+      statisticsService.increment(StatName.AI_INTERPRETATION_QUERIES);
       DeviationResponse response = claudeProvider.interpretDeviation(text);
       if (existing != null) {
         existing.updateFrom(response);

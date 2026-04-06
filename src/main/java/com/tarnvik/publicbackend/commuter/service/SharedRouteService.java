@@ -1,6 +1,7 @@
 package com.tarnvik.publicbackend.commuter.service;
 
 import com.tarnvik.publicbackend.commuter.model.domain.entity.SharedRoute;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.StatName;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.SharedRouteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ public class SharedRouteService {
   private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
   private final SharedRouteRepository sharedRouteRepository;
+  private final StatisticsService statisticsService;
 
   @Transactional
   public String create(String routeData) {
@@ -23,6 +25,7 @@ public class SharedRouteService {
     route.setId(generateId());
     route.setRouteData(routeData);
     sharedRouteRepository.save(route);
+    statisticsService.increment(StatName.ROUTES_SHARED);
     return route.getId();
   }
 

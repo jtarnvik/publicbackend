@@ -35,6 +35,11 @@ public class AllowedUserService {
     return allowedUserRepository.findAll();
   }
 
+  @Transactional(readOnly = true)
+  public long countUsers() {
+    return allowedUserRepository.count();
+  }
+
   @Transactional
   public void deleteUser(Long id) {
     AllowedUser user = allowedUserRepository.findById(id)

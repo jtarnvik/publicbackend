@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="021-1" author="jesper">
+        <createTable tableName="statistics">
+            <column name="id" type="BIGINT">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="counter" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="create_date" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <sql dbms="postgresql">ALTER TABLE statistics ENABLE ROW LEVEL SECURITY;</sql>
+
+        <insert tableName="id_gen">
+            <column name="id" valueNumeric="9"/>
+            <column name="gen_name" value="statistics_gen"/>
+            <column name="gen_value" valueNumeric="10000"/>
+        </insert>
+
+        <insert tableName="statistics">
+            <column name="id" valueNumeric="1"/>
+            <column name="name" value="ROUTES_SHARED"/>
+            <column name="counter" valueNumeric="0"/>
+            <column name="create_date" valueDate="now()"/>
+        </insert>
+        <insert tableName="statistics">
+            <column name="id" valueNumeric="2"/>
+            <column name="name" value="AI_INTERPRETATION_QUERIES"/>
+            <column name="counter" valueNumeric="0"/>
+            <column name="create_date" valueDate="now()"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>
