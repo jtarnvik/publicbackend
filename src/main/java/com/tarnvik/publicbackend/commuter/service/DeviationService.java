@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
@@ -81,6 +82,11 @@ public class DeviationService {
     DeviationInterpretation interpretation = deviationDao.findInterpretationById(deviationId)
       .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     deviationDao.hideDeviationIfNotAlreadyHidden(user, interpretation);
+  }
+
+  @Transactional
+  public void clearAllHiddenDeviations(AllowedUser user) {
+    deviationDao.clearAllHiddenDeviations(user);
   }
 
   private DeviationInterpretationResult interpretSingle(String text, Set<Long> hiddenIds) {

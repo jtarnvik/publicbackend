@@ -38,6 +38,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oauth2Login;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -208,6 +209,44 @@ class DeviationInterpretationFlowTest {
     mockMvc.perform(post("/api/protected/deviations/99999/hide")
         .with(oauth2Login().attributes(attrs -> attrs.put("email", TEST_EMAIL))))
       .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void clearAllHiddenDeviations_removesAllHidesForUser() throws Exception {
+    String textA = "Pendeltåg linje 43 - Inställda avgångar på grund av tekniskt fel vid Stockholms Central";
+    String textB = "Pendeltåg linje 44 - Förseningar på grund av signalfel vid Sundbyberg";
+    when(claudeProvider.interpretDeviation(textA)).thenReturn(successResponse(Importance.HIGH));
+    when(claudeProvider.interpretDeviation(textB)).thenReturn(successResponse(Importance.MEDIUM));
+
+    long idA = interpretAndExtractId(textA);
+    long idB = interpretAndExtractId(textB);
+
+    mockMvc.perform(post("/api/protected/deviations/" + idA + "/hide")
+        .with(oauth2Login().attributes(attrs -> attrs.put("email", TEST_EMAIL))))
+      .andExpect(status().isOk());
+    mockMvc.perform(post("/api/protected/deviations/" + idB + "/hide")
+        .with(oauth2Login().attributes(attrs -> attrs.put("email", TEST_EMAIL))))
+      .andExpect(status().isOk());
+
+    long userId = allowedUserRepository.findByEmail(TEST_EMAIL).orElseThrow().getId();
+    assertThat(userHiddenDeviationRepository.findAllByAllowedUserId(userId)).hasSize(2);
+
+    mockMvc.perform(delete("/api/protected/deviations/hidden")
+        .with(oauth2Login().attributes(attrs -> attrs.put("email", TEST_EMAIL))))
+      .andExpect(status().isNoContent());
+
+    assertThat(userHiddenDeviationRepository.findAllByAllowedUserId(userId)).isEmpty();
+  }
+
+  private long interpretAndExtractId(String text) throws Exception {
+    String json = mockMvc.perform(post("/api/protected/deviations/interpret")
+        .with(oauth2Login().attributes(attrs -> attrs.put("email", TEST_EMAIL)))
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(interpretBody(text)))
+      .andExpect(status().isOk())
+      .andReturn().getResponse().getContentAsString();
+    List<DeviationInterpretationResult> results = objectMapper.readValue(json, new TypeReference<>() {});
+    return results.getFirst().id();
   }
 
   private DeviationResponse successResponse(Importance importance) {

@@ -7,6 +7,7 @@ import com.tarnvik.publicbackend.commuter.service.DeviationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -37,5 +38,11 @@ public class DeviationController {
   ) {
     deviationService.hideDeviation(id, user);
     return ResponseEntity.ok().build();
+  }
+
+  @DeleteMapping("/hidden")
+  public ResponseEntity<Void> clearAllHiddenDeviations(AllowedUser user) {
+    deviationService.clearAllHiddenDeviations(user);
+    return ResponseEntity.noContent().build();
   }
 }

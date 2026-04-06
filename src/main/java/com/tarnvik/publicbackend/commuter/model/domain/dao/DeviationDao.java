@@ -67,4 +67,9 @@ public class DeviationDao {
       userHiddenDeviationRepository.save(new UserHiddenDeviation(user, interpretation));
     }
   }
+
+  @Transactional
+  public void clearAllHiddenDeviations(AllowedUser user) {
+    userHiddenDeviationRepository.deleteAllByAllowedUser(user);
+  }
 }
