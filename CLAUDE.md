@@ -193,6 +193,7 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 - Email whitelist enforced in `AuthenticationSuccessHandler` (not via roles/authorities)
 - `/ping` and `/api/public/**` are public
 - `/api/auth/me` is permitAll but returns 401 when unauthenticated (no auto-redirect)
+- All `/api/**` paths return 401 for unauthenticated requests instead of redirecting to OAuth2 login (configured via `exceptionHandling().defaultAuthenticationEntryPointFor()` with `PathPatternRequestMatcher`)
 - `/api/protected/**` requires authentication
 - CSRF disabled (SPA + CORS provides equivalent protection)
 - CORS configured for `${FRONTEND_URL}` only, credentials allowed
@@ -212,12 +213,16 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 | DELETE | `/api/protected/account` | User | Delete own account (cascade removes all data, invalidates session). Returns 409 if last admin. |
 | POST | `/api/protected/deviations/interpret` | User | Interpret a list of deviation texts via Claude AI |
 | POST | `/api/protected/deviations/{id}/hide` | User | Hide a deviation by its DB id |
+| DELETE | `/api/protected/deviations/hidden` | User | Clear all hidden deviations for the current user |
+| POST | `/api/protected/routes` | User | Create a shared route link; returns `{ id }`. Increments `ROUTES_SHARED` stat. |
 | GET | `/api/admin/access-requests/count` | Admin | Count pending access requests |
 | GET | `/api/admin/access-requests` | Admin | List pending access requests |
 | POST | `/api/admin/access-requests/{id}/approve` | Admin | Approve an access request |
 | DELETE | `/api/admin/access-requests/{id}` | Admin | Reject/delete an access request |
 | GET | `/api/admin/users` | Admin | List allowed users |
 | DELETE | `/api/admin/users/{id}` | Admin | Delete an allowed user |
+| GET | `/api/admin/statistics` | Admin | Usage statistics (`routesShared`, `aiInterpretationQueries`, `userCount`) |
+| GET | `/api/public/routes/{id}` | Public | Fetch a shared route by ID; returns `{ routeData }` (serialized Journey JSON) |
 
 ---
 
