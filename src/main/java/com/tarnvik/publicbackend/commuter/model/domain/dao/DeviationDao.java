@@ -61,6 +61,11 @@ public class DeviationDao {
     return entity;
   }
 
+  @Transactional(readOnly = true)
+  public boolean hasHiddenDeviations(Long userId) {
+    return userHiddenDeviationRepository.existsByAllowedUserId(userId);
+  }
+
   @Transactional
   public void hideDeviationIfNotAlreadyHidden(AllowedUser user, DeviationInterpretation interpretation) {
     if (!userHiddenDeviationRepository.existsByAllowedUserIdAndDeviationInterpretationId(user.getId(), interpretation.getId())) {

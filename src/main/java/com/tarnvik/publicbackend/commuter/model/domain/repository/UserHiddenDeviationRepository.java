@@ -14,5 +14,7 @@ public interface UserHiddenDeviationRepository extends JpaRepository<UserHiddenD
 
   void deleteAllByDeviationInterpretation(DeviationInterpretation deviationInterpretation);
 
+  boolean existsByAllowedUserId(Long allowedUserId);
+
   void deleteAllByAllowedUser(AllowedUser user);
 }

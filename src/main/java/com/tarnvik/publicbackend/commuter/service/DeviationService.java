@@ -78,6 +78,10 @@ public class DeviationService {
       .toList();
   }
 
+  public boolean hasHiddenDeviations(AllowedUser user) {
+    return deviationDao.hasHiddenDeviations(user.getId());
+  }
+
   public void hideDeviation(Long deviationId, AllowedUser user) {
     DeviationInterpretation interpretation = deviationDao.findInterpretationById(deviationId)
       .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
