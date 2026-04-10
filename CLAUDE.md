@@ -21,7 +21,7 @@ Personal Stockholm commuter dashboard backend. Handles Google OAuth2 authenticat
 
 ## Spring Boot 4 — Important Notes
 
-This project uses **Spring Boot 4.0.4**, which introduced significant modularization
+This project uses **Spring Boot 4.0.x**, which introduced significant modularization
 compared to Spring Boot 3.x. Many autoconfiguration classes moved to new packages and
 new module-specific starters were introduced. Key differences to be aware of:
 
