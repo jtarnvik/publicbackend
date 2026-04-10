@@ -46,7 +46,8 @@ class UserSettingsCascadeDeleteTest {
   @WithMockUser(roles = "ADMIN")
   void deletingUserAlsoCascadesSettings() throws Exception {
     allowedUserService.createUser(TEST_EMAIL, TEST_NAME);
-    userSettingsService.saveSettings(TEST_EMAIL, "9091001000003715", "Skogslöparvägen", true);
+    var user = allowedUserRepository.findByEmail(TEST_EMAIL).orElseThrow();
+    userSettingsService.saveSettings(user, "9091001000003715", "Skogslöparvägen", true);
 
     assertThat(userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL)).isPresent();
 

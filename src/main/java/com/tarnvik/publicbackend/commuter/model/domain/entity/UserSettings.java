@@ -1,6 +1,9 @@
 package com.tarnvik.publicbackend.commuter.model.domain.entity;
 
+import com.tarnvik.publicbackend.commuter.model.domain.RecentStop;
+import com.tarnvik.publicbackend.commuter.model.domain.converter.RecentStopListConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -15,6 +18,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "user_settings")
@@ -32,14 +37,18 @@ public class UserSettings {
   @JoinColumn(name = "allowed_user_id", nullable = false, unique = true)
   private AllowedUser allowedUser;
 
-  @Column(name = "stop_point_id", nullable = false)
+  @Column(name = "stop_point_id")
   private String stopPointId;
 
-  @Column(name = "stop_point_name", nullable = false)
+  @Column(name = "stop_point_name")
   private String stopPointName;
 
   @Column(name = "use_ai_interpretation", nullable = false)
   private boolean useAiInterpretation;
+
+  @Convert(converter = RecentStopListConverter.class)
+  @Column(name = "recent_stops", columnDefinition = "TEXT")
+  private List<RecentStop> recentStops = new ArrayList<>();
 
   @CreationTimestamp
   @Column(name = "create_date")

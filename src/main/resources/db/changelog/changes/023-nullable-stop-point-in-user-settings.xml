@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="023-1" author="jesper">
+        <comment>Allow stop_point_id and stop_point_name to be null so a user can have recent stops without a saved preferred stop.</comment>
+        <dropNotNullConstraint tableName="user_settings" columnName="stop_point_id" columnDataType="varchar(255)"/>
+        <dropNotNullConstraint tableName="user_settings" columnName="stop_point_name" columnDataType="varchar(255)"/>
+    </changeSet>
+
+</databaseChangeLog>

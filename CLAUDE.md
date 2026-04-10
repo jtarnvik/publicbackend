@@ -260,6 +260,8 @@ Deviation texts from the frontend are interpreted by Claude AI and cached in the
 
 **`AllowedUser` injection:** Controllers receive `AllowedUser` as a method parameter resolved by `AllowedUserArgumentResolver` (registered in `WebMvcConfig`). It looks up the user by email from the `OAuth2User` principal and throws 401 if not found.
 
+**Prefer `AllowedUser` over email strings in services:** When a controller already has an `AllowedUser` parameter, pass it directly to service methods rather than extracting the email and re-looking up the user inside the service. This avoids redundant DB lookups and removes the need for services to validate that the user exists — the resolver already guarantees that. Service methods that operate on behalf of the current user should accept `AllowedUser`, not `String email`.
+
 ---
 
 ## Integration Tests

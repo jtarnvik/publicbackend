@@ -26,5 +26,7 @@
     <include file="db/changelog/changes/019-add-use-ai-interpretation-to-user-settings.xml"/>
     <include file="db/changelog/changes/020-create-shared-route-table.xml"/>
     <include file="db/changelog/changes/021-create-statistics-table.xml"/>
+    <include file="db/changelog/changes/022-add-recent-stops-to-user-settings.xml"/>
+    <include file="db/changelog/changes/023-nullable-stop-point-in-user-settings.xml"/>
 
 </databaseChangeLog>
