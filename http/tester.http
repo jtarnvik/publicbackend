@@ -1,3 +1,6 @@
 ### Call test api
 GET http://localhost:8080/test
 Content-Type: application/json
+
+### Experimental vehicle pos
+GET http://localhost:8080/api/public/experiment

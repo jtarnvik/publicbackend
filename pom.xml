@@ -131,6 +131,13 @@
             <artifactId>anthropic-java</artifactId>
             <version>${anthropic-java.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>org.mobilitydata</groupId>
+            <artifactId>gtfs-realtime-bindings</artifactId>
+            <version>0.0.8</version>
+        </dependency>
+        
     </dependencies>
 
     <build>
