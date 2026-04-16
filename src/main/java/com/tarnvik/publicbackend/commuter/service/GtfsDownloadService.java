@@ -1,8 +1,8 @@
 package com.tarnvik.publicbackend.commuter.service;
 
+import com.tarnvik.publicbackend.commuter.model.domain.dao.GtfsDownloadDao;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadLog;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadStatus;
-import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsDownloadLogRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
@@ -17,8 +17,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.zip.GZIPInputStream;
 
 @Service
@@ -28,18 +26,18 @@ public class GtfsDownloadService {
   private static final Path ZIP_PATH = WORK_DIR.resolve("sl.zip");
   private static final int LOCAL_MAX_DOWNLOADS_PER_30_DAYS = 15;
 
-  private final GtfsDownloadLogRepository downloadLogRepository;
+  private final GtfsDownloadDao gtfsDownloadDao;
   private final Environment environment;
   private final String apiKey;
   private final String gtfsUrl;
 
   public GtfsDownloadService(
-    GtfsDownloadLogRepository downloadLogRepository,
+    GtfsDownloadDao gtfsDownloadDao,
     Environment environment,
     @Value("${samtrafiken.api-key}") String apiKey,
     @Value("${samtrafiken.gtfs-url}") String gtfsUrl
   ) {
-    this.downloadLogRepository = downloadLogRepository;
+    this.gtfsDownloadDao = gtfsDownloadDao;
     this.environment = environment;
     this.apiKey = apiKey;
     this.gtfsUrl = gtfsUrl;
@@ -48,13 +46,13 @@ public class GtfsDownloadService {
   public void downloadIfNeeded() {
     LocalDate today = LocalDate.now();
 
-    if (downloadLogRepository.findByDate(today).isPresent()) {
+    if (gtfsDownloadDao.findByDate(today).isPresent()) {
       log.info("GTFS download already attempted today ({}), skipping", today);
       return;
     }
 
     if (environment.acceptsProfiles(Profiles.of("local"))) {
-      long recentDownloads = downloadLogRepository.countByDateAfter(today.minusDays(30));
+      long recentDownloads = gtfsDownloadDao.countByDateAfter(today.minusDays(30));
       if (recentDownloads > LOCAL_MAX_DOWNLOADS_PER_30_DAYS) {
         log.warn("GTFS download skipped: {} downloads in the last 30 days exceeds local limit of {}",
           recentDownloads, LOCAL_MAX_DOWNLOADS_PER_30_DAYS);
@@ -62,11 +60,7 @@ public class GtfsDownloadService {
       }
     }
 
-    GtfsDownloadLog entry = new GtfsDownloadLog();
-    entry.setDate(today);
-    entry.setStatus(GtfsDownloadStatus.DOWNLOAD_START);
-    entry.setDownloadStartTime(LocalDateTime.now());
-    downloadLogRepository.save(entry);
+    GtfsDownloadLog entry = gtfsDownloadDao.insertDownloadStart(today);
 
     try {
       deleteWorkDir();
@@ -89,27 +83,25 @@ public class GtfsDownloadService {
       long size = Files.size(ZIP_PATH);
       log.info("GTFS zip downloaded: size={} bytes, duration={}ms", size, duration);
 
-      entry.setStatus(GtfsDownloadStatus.DOWNLOAD_DONE);
-      downloadLogRepository.save(entry);
+      gtfsDownloadDao.updateStatus(entry, GtfsDownloadStatus.DOWNLOAD_DONE);
     } catch (Exception e) {
       log.error("GTFS download failed: {}", e.getMessage(), e);
-      entry.setStatus(GtfsDownloadStatus.FAILED);
-      entry.setErrorMessage(e.getMessage());
-      downloadLogRepository.save(entry);
+      gtfsDownloadDao.updateFailed(entry, e.getMessage());
     }
   }
 
   private void deleteWorkDir() throws IOException {
     if (Files.exists(WORK_DIR)) {
-      Files.walk(WORK_DIR)
-        .sorted(Comparator.reverseOrder())
-        .forEach(p -> {
-          try {
-            Files.delete(p);
-          } catch (IOException e) {
-            log.warn("Could not delete {}: {}", p, e.getMessage());
-          }
-        });
+      try (var paths = Files.walk(WORK_DIR)) {
+        paths.sorted(java.util.Comparator.reverseOrder())
+          .forEach(p -> {
+            try {
+              Files.delete(p);
+            } catch (IOException e) {
+              log.warn("Could not delete {}: {}", p, e.getMessage());
+            }
+          });
+      }
     }
   }
 }
