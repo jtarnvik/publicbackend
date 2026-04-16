@@ -28,5 +28,6 @@
     <include file="db/changelog/changes/021-create-statistics-table.xml"/>
     <include file="db/changelog/changes/022-add-recent-stops-to-user-settings.xml"/>
     <include file="db/changelog/changes/023-nullable-stop-point-in-user-settings.xml"/>
+    <include file="db/changelog/changes/024-create-gtfs-download-log-table.xml"/>
 
 </databaseChangeLog>

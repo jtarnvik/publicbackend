@@ -301,3 +301,232 @@ All tables created in PostgreSQL must have row level security enabled. Include t
 ```
 
 This must be a separate `<sql>` tag within the same changeset, not a separate changeset.
+
+## GTFS Static and Realtime Data
+
+This chapter documents findings from manual exploration of the Samtrafiken GTFS Regional
+feed and the SL GTFS-RT VehiclePositions feed, using Stockholm pendeltåg line 43 as the
+reference line throughout.
+
+### Data Sources
+
+- **Static feed:** GTFS Regional (Stockholm) from Trafiklab — downloaded periodically, roughly weekly updates
+- **Realtime feed:** GTFS Regional Realtime — VehiclePositions (Protobuf format) from Trafiklab
+- **API library:** `com.google.transit:gtfs-realtime-bindings:0.0.8` for Protobuf parsing
+
+### Key Identifiers
+
+| Value | Meaning |
+|---|---|
+| `9011001004300000` | `route_id` for line 43 pendeltåg |
+| `9022001xxxxxxxxx` | `stop_id` format used by Samtrafiken |
+| `9021001xxxxxxxxx` | `parent_station` format (station grouping stops/platforms) |
+
+---
+
+### GTFS Static Feed
+
+#### File Overview and Sizes (Stockholm Regional Feed)
+
+| File | Size | Purpose |
+|---|---|---|
+| `agency.txt` | ~1KB | Transit operators in the feed |
+| `attributions.txt` | ~2.8MB | Legal attribution requirements |
+| `booking_rules.txt` | ~4KB | Rules for bookable/flex services |
+| `calendar.txt` | ~26KB | Weekly service patterns (all zeros — not used by Samtrafiken) |
+| `calendar_dates.txt` | ~180KB | Explicit date-based service definitions |
+| `feed_info.txt` | tiny | Feed metadata, version, validity dates |
+| `routes.txt` | ~31KB | All routes across all operators |
+| `shapes.txt` | ~147MB | Route polyline geometry |
+| `stop_times.txt` | ~140MB | Scheduled times at each stop per trip — largest file |
+| `stops.txt` | ~1.5MB | Stop names and coordinates |
+| `transfers.txt` | ~1.1MB | Interchange rules between routes |
+| `trips.txt` | ~6MB | All trips across all operators (~88,600 rows) |
+
+**Important:** `stop_times.txt` is ~140MB. Always filter by `trip_id` early — never load it fully into memory.
+
+#### File Relationships and Join Chain
+
+```
+routes.txt       →  route_id
+                        ↓
+trips.txt        →  trip_id, service_id, shape_id, direction_id
+                        ↓                    ↓
+stop_times.txt   →  stop_id, stop_sequence,  calendar_dates.txt
+                    arrival_time,            → which dates this trip runs
+                    shape_dist_traveled
+                        ↓
+stops.txt        →  stop_name, stop_lat, stop_lon
+```
+
+#### routes.txt
+
+**Key fields:** `route_id`, `agency_id`, `route_short_name`, `route_long_name`, `route_type`
+
+**Finding:** Samtrafiken uses extended GTFS route types (not standard small integers):
+- `100` = Railway/Rail service (pendeltåg)
+- `700` = Bus
+- `900` = Tram
+- Metro (lines 17/18/19): type code **not yet verified** — do not assume `401`; check `routes.txt` before filtering.
+
+Standard GTFS types (2=rail, 3=bus) are not used. Filter by `route_short_name` to find a line by its public number.
+
+#### trips.txt
+
+**Key fields:** `route_id`, `service_id`, `trip_id`, `direction_id`, `shape_id`, `samtrafiken_internal_trip_number`
+
+**Findings:**
+- Each row is one specific scheduled journey (one train, one direction, one departure)
+- Line 43 has **1348 trips** in the full feed (all days, both directions)
+- `trip_headsign` and `trip_short_name` are **empty** — do not rely on them
+- `shape_id` is populated — use for drawing route geometry from `shapes.txt`
+- `direction_id`: 0 or 1 distinguishing the two directions
+- `samtrafiken_internal_trip_number` is a Samtrafiken extension field, not standard GTFS
+
+#### calendar.txt and calendar_dates.txt
+
+**Finding:** Samtrafiken does **not** use the weekday pattern columns in `calendar.txt` — every row has `0,0,0,0,0,0,0` for all days. Ignore `calendar.txt` entirely.
+
+All scheduling is done via `calendar_dates.txt` with explicit dates:
+- `exception_type = 1` → service runs on this date
+- `exception_type = 2` → service removed on this date
+
+The feed contains **707 unique service_ids** shared across ~88,600 trips. Line 43 alone uses **152 different service_ids**, of which **~41 are active on any given weekday**. Swedish public holidays are already excluded from weekday service_ids — Samtrafiken handles this.
+
+**To find trips running today:**
+1. Query `calendar_dates.txt` for today's date with `exception_type = 1` → collect active `service_id` values
+2. Filter `trips.txt` by `route_id` AND active `service_id` values
+
+For line 43 this yields approximately **230 trips on a normal weekday** (both directions, full day).
+
+#### stop_times.txt
+
+**Key fields:** `trip_id`, `arrival_time`, `departure_time`, `stop_id`, `stop_sequence`, `stop_headsign`, `pickup_type`, `drop_off_type`, `shape_dist_traveled`, `timepoint`
+
+**Findings:**
+- `stop_sequence` is populated and sequential — the primary ordering field for the schematic
+- `shape_dist_traveled` is populated (meters along route) — use for proportional stop spacing in the schematic
+- `stop_headsign` contains the **destination name** (last stop) and is consistent across all stops in a trip — reliable for display as "Train to X"
+- `timepoint = 1` means exact scheduled times (not interpolated)
+- Terminus behaviour via `pickup_type`/`drop_off_type`: first stop = pickup only, last stop = drop-off only
+
+**Line 43 example trip** (trip_id `14010000656749468`):
+- 20 stops, Bålsta → Västerhaninge
+- Duration: ~75 minutes (08:24 → 09:39)
+- Distance: 74,168 meters
+
+#### stops.txt
+
+**Key fields:** `stop_id`, `stop_name`, `stop_lat`, `stop_lon`, `location_type`, `parent_station`, `platform_code`
+
+**Findings:**
+- `location_type = 0` = individual stop/platform
+- `parent_station` groups platforms under a station entity
+- `platform_code` is populated — available for display if needed
+- Coordinates are reliable and match real-world positions
+
+---
+
+### GTFS-RT VehiclePositions Feed
+
+#### Parsing
+
+```java
+FeedMessage feed;
+try (FileInputStream fis = new FileInputStream("/tmp/VehiclePositions.pb")) {
+    feed = FeedMessage.parseFrom(fis);
+}
+```
+
+The Stockholm regional feed contains approximately **1750 vehicle entities** at any given time.
+
+#### Field Availability — Critical Findings
+
+| Field | Populated? | Notes |
+|---|---|---|
+| `trip.route_id` | ❌ Never | Cannot filter by route_id in RT feed |
+| `trip.trip_id` | ✅ Always | Primary join key to static data |
+| `trip.direction_id` | ⚠️ Unreliable | Present but not trustworthy — derive from static data |
+| `position.latitude` | ✅ Always | |
+| `position.longitude` | ✅ Always | |
+| `position.bearing` | ⚠️ Sometimes | Often 0.0 — treat 0.0 as missing |
+| `current_stop_sequence` | ❌ Never | Always 0 — cannot use for stop placement |
+| `stop_id` | ❌ Never | Always empty |
+| `current_status` | ✅ Always | `IN_TRANSIT_TO` or `STOPPED_AT` |
+| `timestamp` | ✅ Always | Unix timestamp of position report |
+
+#### Matching RT to Static Data
+
+Since `route_id` is not present in the RT feed, matching is done via `trip_id`:
+
+```
+RT trip_id → trips.txt → confirms route_id (is this line 43?)
+RT trip_id → stop_times.txt → ordered stop sequence for this trip
+RT lat/lon  → geometric matching against stop coordinates → position on schematic
+```
+
+**To find all line 43 vehicles:**
+1. Load all line 43 `trip_id` values into a `HashSet` (from cached trips table)
+2. For each RT entity, check if `trip.getTripId()` is in the set
+3. At 17:34 on a weekday, line 43 had **17 active vehicles**
+
+#### Vehicle Placement on Schematic
+
+Since `current_stop_sequence` is never populated, vehicle position on the schematic must be derived geometrically:
+
+1. Get the ordered stop sequence for the vehicle's `trip_id` from `stop_times.txt`
+2. Get coordinates for each stop from `stops.txt`
+3. For each consecutive stop pair, calculate distance from vehicle lat/lon to that segment
+4. The segment with minimum distance determines which two stops the vehicle is between
+5. Use `shape_dist_traveled` from `stop_times.txt` for proportional placement within the segment
+
+Use the Haversine formula for lat/lon distance calculations (available in standard libraries — do not implement from scratch).
+
+---
+
+### Manual File Analysis — Shell Commands Reference
+
+```bash
+# Find route_id for a line
+head -1 routes.txt && grep ",43," routes.txt
+
+# Count trips for a route
+grep 9011001004300000 trips.txt | wc -l
+
+# Inspect trip structure
+head -1 trips.txt && grep 9011001004300000 trips.txt | head -1
+
+# Get unique service_ids for a route
+grep 9011001004300000 trips.txt | cut -d',' -f2 | sort -u
+
+# Save all service_ids for a route
+grep 9011001004300000 trips.txt | cut -d',' -f2 | sort -u > line43_service_ids.txt
+
+# Find which service_ids are active today
+grep "^" line43_service_ids.txt | while read sid; do grep "^$sid,20260415,1" calendar_dates.txt; done
+
+# Count trips running today for a route
+grep "20260415,1" calendar_dates.txt | cut -d',' -f1 > today_service_ids.txt
+grep 9011001004300000 trips.txt | grep -F -f <(sed 's/.*/,&,/' today_service_ids.txt) | wc -l
+
+# Save all trip_ids for a route
+grep 9011001004300000 trips.txt | cut -d',' -f3 > alltrips.txt
+
+# Inspect stop_times for a trip
+head -1 stop_times.txt && grep 14010000656749468 stop_times.txt
+
+# Look up stops by stop_id
+head -1 stops.txt && grep "9022001006101001\|9022001006171002" stops.txt
+```
+
+---
+
+### Planned Database Caching Strategy
+
+The application caches static GTFS data for a fixed set of lines of interest into Supabase PostgreSQL to avoid parsing large flat files at runtime.
+
+- **Scope:** A small number of specific lines (pendeltåg, select bus routes)
+- **Refresh:** Nightly scheduled job (`@Scheduled` cron in Spring Boot), typically around 03:00
+- **Feed versioning:** Check `feed_info.txt` for a new feed version before downloading — reuse cached zip if unchanged
+- **Scale:** Thousands of rows per line per day — well within PostgreSQL capacity
+- **RLS:** All tables must have Row Level Security enabled per project standing rule (see top of CLAUDE.md)
