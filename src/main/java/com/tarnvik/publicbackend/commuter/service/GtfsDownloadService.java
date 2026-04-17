@@ -93,7 +93,7 @@ public class GtfsDownloadService {
       long size = Files.size(ZIP_PATH);
       log.info("GTFS zip downloaded: size={} bytes, duration={}ms", size, duration);
 
-      gtfsDownloadDao.updateStatus(entry, GtfsDownloadStatus.DOWNLOAD_DONE);
+      gtfsDownloadDao.markDownloadDone(entry);
     } catch (Exception e) {
       log.error("GTFS download failed: {}", e.getMessage(), e);
       gtfsDownloadDao.updateFailed(entry, e.getMessage());
@@ -134,12 +134,22 @@ public class GtfsDownloadService {
       long duration = System.currentTimeMillis() - start;
       log.info("GTFS zip extracted: {} files, duration={}ms", fileCount, duration);
 
-      gtfsDownloadDao.updateStatus(entry, GtfsDownloadStatus.UNZIP_DONE);
+      gtfsDownloadDao.markUnzipDone(entry);
     } catch (Exception e) {
       log.error("GTFS unzip failed: {}", e.getMessage(), e);
       gtfsDownloadDao.updateFailed(entry, e.getMessage());
       throw new GtfsDownloadException("GTFS unzip failed: " + e.getMessage(), e);
     }
+  }
+
+  public void resetToDownloadDone(GtfsDownloadLog entry) {
+    try {
+      deleteDir(UNZIP_DIR);
+    } catch (IOException e) {
+      log.warn("Could not delete unzip dir during reset: {}", e.getMessage());
+    }
+    gtfsDownloadDao.resetToDownloadDone(entry);
+    log.info("GTFS pipeline reset to DOWNLOAD_DONE for date {}", entry.getDate());
   }
 
   private void deleteDir(Path dir) throws IOException {

@@ -42,14 +42,20 @@ public class GtfsDownloadLog {
   @Column(name = "download_start_time")
   private LocalDateTime downloadStartTime;
 
+  @Column(name = "download_end_time")
+  private LocalDateTime downloadEndTime;
+
   @Column(name = "unzip_start_time")
   private LocalDateTime unzipStartTime;
+
+  @Column(name = "unzip_end_time")
+  private LocalDateTime unzipEndTime;
 
   @Column(name = "parse_start_time")
   private LocalDateTime parseStartTime;
 
-  @Column(name = "end_time")
-  private LocalDateTime endTime;
+  @Column(name = "parse_end_time")
+  private LocalDateTime parseEndTime;
 
   @CreationTimestamp
   @Column(name = "create_date", updatable = false)

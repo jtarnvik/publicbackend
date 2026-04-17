@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="025-1" author="jesper">
+        <addColumn tableName="gtfs_download_log">
+            <column name="download_end_time" type="DATETIME"/>
+            <column name="unzip_end_time" type="DATETIME"/>
+        </addColumn>
+        <renameColumn tableName="gtfs_download_log"
+                      oldColumnName="end_time"
+                      newColumnName="parse_end_time"
+                      columnDataType="DATETIME"/>
+    </changeSet>
+
+</databaseChangeLog>

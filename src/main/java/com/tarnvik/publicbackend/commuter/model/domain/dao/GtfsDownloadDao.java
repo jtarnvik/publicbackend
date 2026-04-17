@@ -27,8 +27,9 @@ public class GtfsDownloadDao {
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  public void updateStatus(GtfsDownloadLog entry, GtfsDownloadStatus status) {
-    entry.setStatus(status);
+  public void markDownloadDone(GtfsDownloadLog entry) {
+    entry.setStatus(GtfsDownloadStatus.DOWNLOAD_DONE);
+    entry.setDownloadEndTime(LocalDateTime.now());
     downloadLogRepository.save(entry);
   }
 
@@ -36,6 +37,13 @@ public class GtfsDownloadDao {
   public void markUnzipStart(GtfsDownloadLog entry) {
     entry.setStatus(GtfsDownloadStatus.UNZIP_START);
     entry.setUnzipStartTime(LocalDateTime.now());
+    downloadLogRepository.save(entry);
+  }
+
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void markUnzipDone(GtfsDownloadLog entry) {
+    entry.setStatus(GtfsDownloadStatus.UNZIP_DONE);
+    entry.setUnzipEndTime(LocalDateTime.now());
     downloadLogRepository.save(entry);
   }
 
@@ -48,6 +56,21 @@ public class GtfsDownloadDao {
 
   public Optional<GtfsDownloadLog> findByDate(LocalDate date) {
     return downloadLogRepository.findByDate(date);
+  }
+
+  public Optional<GtfsDownloadLog> findMostRecent() {
+    return downloadLogRepository.findTopByOrderByDateDesc();
+  }
+
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void resetToDownloadDone(GtfsDownloadLog entry) {
+    entry.setStatus(GtfsDownloadStatus.DOWNLOAD_DONE);
+    entry.setUnzipStartTime(null);
+    entry.setUnzipEndTime(null);
+    entry.setParseStartTime(null);
+    entry.setParseEndTime(null);
+    entry.setErrorMessage(null);
+    downloadLogRepository.save(entry);
   }
 
   public long countByDateAfter(LocalDate date) {

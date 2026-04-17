@@ -9,6 +9,8 @@ import java.util.Optional;
 public interface GtfsDownloadLogRepository extends JpaRepository<GtfsDownloadLog, Long> {
   Optional<GtfsDownloadLog> findByDate(LocalDate date);
 
+  Optional<GtfsDownloadLog> findTopByOrderByDateDesc();
+
   long countByDateAfter(LocalDate date);
 
   void deleteByDateBefore(LocalDate date);
