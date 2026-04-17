@@ -41,7 +41,7 @@ public class DeviationInterpretationError {
   private LocalDateTime lockedUntil;
 
   @CreationTimestamp
-  @Column(name = "create_date")
+  @Column(name = "create_date", updatable = false)
   private LocalDateTime createDate;
 
   @UpdateTimestamp

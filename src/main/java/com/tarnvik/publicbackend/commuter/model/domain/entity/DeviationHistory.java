@@ -73,7 +73,7 @@ public class DeviationHistory {
   private LocalDateTime originalCreateDate;
 
   @CreationTimestamp
-  @Column(name = "create_date")
+  @Column(name = "create_date", updatable = false)
   private LocalDateTime createDate;
 
   @UpdateTimestamp

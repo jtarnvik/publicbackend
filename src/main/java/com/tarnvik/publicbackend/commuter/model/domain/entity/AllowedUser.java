@@ -36,7 +36,7 @@ public class AllowedUser {
   private String role;
 
   @CreationTimestamp
-  @Column(name = "create_date")
+  @Column(name = "create_date", updatable = false)
   private LocalDateTime createDate;
 
   @UpdateTimestamp

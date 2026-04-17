@@ -52,7 +52,7 @@ public class GtfsDownloadLog {
   private LocalDateTime endTime;
 
   @CreationTimestamp
-  @Column(name = "create_date")
+  @Column(name = "create_date", updatable = false)
   private LocalDateTime createDate;
 
   @UpdateTimestamp

@@ -71,7 +71,7 @@ public class DeviationInterpretation {
   private boolean aiError;
 
   @CreationTimestamp
-  @Column(name = "create_date")
+  @Column(name = "create_date", updatable = false)
   private LocalDateTime createDate;
 
   public static DeviationInterpretation from(String text, String hash, DeviationResponse response) {

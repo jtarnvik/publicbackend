@@ -36,7 +36,7 @@ public class AccessRequest {
   private String message;
 
   @CreationTimestamp
-  @Column(name = "create_date")
+  @Column(name = "create_date", updatable = false)
   private LocalDateTime createDate;
 
   @UpdateTimestamp
