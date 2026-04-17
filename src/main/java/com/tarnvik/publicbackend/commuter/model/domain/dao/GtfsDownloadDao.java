@@ -33,6 +33,13 @@ public class GtfsDownloadDao {
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void markUnzipStart(GtfsDownloadLog entry) {
+    entry.setStatus(GtfsDownloadStatus.UNZIP_START);
+    entry.setUnzipStartTime(LocalDateTime.now());
+    downloadLogRepository.save(entry);
+  }
+
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void updateFailed(GtfsDownloadLog entry, String errorMessage) {
     entry.setStatus(GtfsDownloadStatus.FAILED);
     entry.setErrorMessage(errorMessage);

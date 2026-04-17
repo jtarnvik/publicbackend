@@ -1,6 +1,7 @@
 package com.tarnvik.publicbackend.commuter.port.incoming.scheduled;
 
 import com.tarnvik.publicbackend.commuter.model.domain.dao.GtfsDownloadDao;
+import com.tarnvik.publicbackend.commuter.service.GtfsDownloadException;
 import com.tarnvik.publicbackend.commuter.service.GtfsDownloadService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,18 +23,26 @@ public class GtfsDownloadJob {
 
   @EventListener(ApplicationReadyEvent.class)
   public void onApplicationReady() {
-    log.info("Application ready — checking if GTFS download is needed");
-    gtfsDownloadService.downloadIfNeeded();
+    log.info("Application ready — running GTFS pipeline");
+    runPipeline();
   }
 
   @Scheduled(cron = "0 0 5 * * *")
   public void scheduledDownload() {
-    log.info("Running scheduled GTFS download at 05:00");
-    gtfsDownloadService.downloadIfNeeded();
+    log.info("Running scheduled GTFS pipeline at 05:00");
+    runPipeline();
   }
 
   @Scheduled(cron = "0 0 0 * * *")
   public void cleanOldEntries() {
     gtfsDownloadDao.deleteByDateBefore(LocalDate.now().minusDays(30));
+  }
+
+  private void runPipeline() {
+    try {
+      gtfsDownloadService.runPipeline();
+    } catch (GtfsDownloadException e) {
+      log.error("GTFS pipeline stopped: {}", e.getMessage());
+    }
   }
 }

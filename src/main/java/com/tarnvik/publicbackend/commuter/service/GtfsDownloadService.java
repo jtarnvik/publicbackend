@@ -17,13 +17,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.Optional;
 import java.util.zip.GZIPInputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 @Service
 @Slf4j
 public class GtfsDownloadService {
   private static final Path WORK_DIR = Path.of("/tmp/sl-gtfs-cache");
   private static final Path ZIP_PATH = WORK_DIR.resolve("sl.zip");
+  private static final Path UNZIP_DIR = WORK_DIR.resolve("unzipped");
   private static final int LOCAL_MAX_DOWNLOADS_PER_30_DAYS = 15;
 
   private final GtfsDownloadDao gtfsDownloadDao;
@@ -41,6 +46,11 @@ public class GtfsDownloadService {
     this.environment = environment;
     this.apiKey = apiKey;
     this.gtfsUrl = gtfsUrl;
+  }
+
+  public void runPipeline() {
+    downloadIfNeeded();
+    unzipIfReady();
   }
 
   public void downloadIfNeeded() {
@@ -63,7 +73,7 @@ public class GtfsDownloadService {
     GtfsDownloadLog entry = gtfsDownloadDao.insertDownloadStart(today);
 
     try {
-      deleteWorkDir();
+      deleteDir(WORK_DIR);
       Files.createDirectories(WORK_DIR);
 
       String url = gtfsUrl + "?key=" + apiKey;
@@ -87,13 +97,55 @@ public class GtfsDownloadService {
     } catch (Exception e) {
       log.error("GTFS download failed: {}", e.getMessage(), e);
       gtfsDownloadDao.updateFailed(entry, e.getMessage());
+      throw new GtfsDownloadException("GTFS download failed: " + e.getMessage(), e);
     }
   }
 
-  private void deleteWorkDir() throws IOException {
-    if (Files.exists(WORK_DIR)) {
-      try (var paths = Files.walk(WORK_DIR)) {
-        paths.sorted(java.util.Comparator.reverseOrder())
+  public void unzipIfReady() {
+    LocalDate today = LocalDate.now();
+    Optional<GtfsDownloadLog> maybeEntry = gtfsDownloadDao.findByDate(today);
+
+    if (maybeEntry.isEmpty() || maybeEntry.get().getStatus() != GtfsDownloadStatus.DOWNLOAD_DONE) {
+      log.info("GTFS unzip skipped — today's status is not DOWNLOAD_DONE");
+      return;
+    }
+
+    GtfsDownloadLog entry = maybeEntry.get();
+    gtfsDownloadDao.markUnzipStart(entry);
+
+    try {
+      deleteDir(UNZIP_DIR);
+      Files.createDirectories(UNZIP_DIR);
+
+      log.info("Unzipping GTFS zip to {}", UNZIP_DIR);
+      long start = System.currentTimeMillis();
+      int fileCount = 0;
+
+      try (ZipInputStream zip = new ZipInputStream(Files.newInputStream(ZIP_PATH))) {
+        ZipEntry zipEntry;
+        while ((zipEntry = zip.getNextEntry()) != null) {
+          Path target = UNZIP_DIR.resolve(zipEntry.getName());
+          Files.copy(zip, target, StandardCopyOption.REPLACE_EXISTING);
+          zip.closeEntry();
+          fileCount++;
+        }
+      }
+
+      long duration = System.currentTimeMillis() - start;
+      log.info("GTFS zip extracted: {} files, duration={}ms", fileCount, duration);
+
+      gtfsDownloadDao.updateStatus(entry, GtfsDownloadStatus.UNZIP_DONE);
+    } catch (Exception e) {
+      log.error("GTFS unzip failed: {}", e.getMessage(), e);
+      gtfsDownloadDao.updateFailed(entry, e.getMessage());
+      throw new GtfsDownloadException("GTFS unzip failed: " + e.getMessage(), e);
+    }
+  }
+
+  private void deleteDir(Path dir) throws IOException {
+    if (Files.exists(dir)) {
+      try (var paths = Files.walk(dir)) {
+        paths.sorted(Comparator.reverseOrder())
           .forEach(p -> {
             try {
               Files.delete(p);

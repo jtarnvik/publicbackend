@@ -1,5 +1,8 @@
 package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 
+import com.google.transit.realtime.GtfsRealtime.FeedEntity;
+import com.google.transit.realtime.GtfsRealtime.FeedMessage;
+import com.google.transit.realtime.GtfsRealtime.VehiclePosition;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsDownloadResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsFileInfo;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsFilesResponse;
@@ -13,16 +16,19 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -96,20 +102,59 @@ public class GtfsPocController {
 
   @GetMapping("/files")
   public ResponseEntity<GtfsFilesResponse> files() throws IOException {
-    if (!Files.exists(UNZIP_DIR)) {
-      return ResponseEntity.ok(new GtfsFilesResponse(List.of()));
+    String pwd = "/Users/jesper/Downloads/sl - 2026-04-15 - 17.34";
+
+    // Load all line 43 trip_ids into a set
+    List<String> lines = Files.readAllLines(Paths.get(pwd + "/alltrips.txt"));
+    Set<String> line43TripIds = new HashSet<>(lines);
+    System.out.println("Line 43 trip_ids loaded: " + line43TripIds.size());
+
+    // Parse VP feed
+    FeedMessage feed;
+    try (FileInputStream fis = new FileInputStream(pwd + "/VehiclePositions.pb")) {
+      feed = FeedMessage.parseFrom(fis);
     }
-    List<GtfsFileInfo> files = Files.list(UNZIP_DIR)
-      .filter(p -> p.getFileName().toString().endsWith(".txt"))
-      .map(p -> {
-        try {
-          return new GtfsFileInfo(p.getFileName().toString(), Files.size(p));
-        } catch (IOException e) {
-          return new GtfsFileInfo(p.getFileName().toString(), -1L);
+    System.out.println("Total entities in feed: " + feed.getEntityCount());
+
+    // Find matches
+    int matchCount = 0;
+    for (FeedEntity entity : feed.getEntityList()) {
+      if (entity.hasVehicle()) {
+        VehiclePosition vp = entity.getVehicle();
+        String tripId = vp.getTrip().getTripId();
+        if (line43TripIds.contains(tripId)) {
+          matchCount++;
+          System.out.println("--- Line 43 Vehicle " + matchCount + " ---");
+          System.out.println("trip_id:   " + tripId);
+          System.out.println("direction: " + vp.getTrip().getDirectionId());
+          System.out.println("lat:       " + vp.getPosition().getLatitude());
+          System.out.println("lon:       " + vp.getPosition().getLongitude());
+          System.out.println("bearing:   " + vp.getPosition().getBearing());
+          System.out.println("stop_seq:  " + vp.getCurrentStopSequence());
+          System.out.println("stop_id:   " + vp.getStopId());
+          System.out.println("status:    " + vp.getCurrentStatus());
+          System.out.println("timestamp: " + vp.getTimestamp());
         }
-      })
-      .sorted(Comparator.comparing(GtfsFileInfo::name))
-      .toList();
-    return ResponseEntity.ok(new GtfsFilesResponse(files));
+      }
+    }
+    System.out.println("Total line 43 vehicles found: " + matchCount);
+
+    return ResponseEntity.ok(new GtfsFilesResponse(List.of()));
+
+//    if (!Files.exists(UNZIP_DIR)) {
+//      return ResponseEntity.ok(new GtfsFilesResponse(List.of()));
+//    }
+//    List<GtfsFileInfo> files = Files.list(UNZIP_DIR)
+//      .filter(p -> p.getFileName().toString().endsWith(".txt"))
+//      .map(p -> {
+//        try {
+//          return new GtfsFileInfo(p.getFileName().toString(), Files.size(p));
+//        } catch (IOException e) {
+//          return new GtfsFileInfo(p.getFileName().toString(), -1L);
+//        }
+//      })
+//      .sorted(Comparator.comparing(GtfsFileInfo::name))
+//      .toList();
+//    return ResponseEntity.ok(new GtfsFilesResponse(files));
   }
 }
