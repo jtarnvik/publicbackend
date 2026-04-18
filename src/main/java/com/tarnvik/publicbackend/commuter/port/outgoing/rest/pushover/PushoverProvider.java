@@ -37,6 +37,10 @@ public class PushoverProvider {
     sendNotification("AI-tolkningsfel", "Avvikelse (hash: " + hashPrefix + "…) har misslyckats " + errorCount + " gånger. Tolkning låst i 24 timmar.");
   }
 
+  public void sendGtfsPipelineErrorNotification(String phase, String errorMessage) {
+    sendNotification("GTFS pipeline error", "Phase: " + phase + "\n" + errorMessage);
+  }
+
   public void sendTestNotification() {
     sendNotification("SL Dashboard test", "Testmeddelande från SL Dashboard.");
   }
