@@ -1,5 +1,6 @@
 package com.tarnvik.publicbackend.commuter.service;
 
+import com.tarnvik.publicbackend.commuter.exception.GtfsDownloadException;
 import com.tarnvik.publicbackend.commuter.model.domain.dao.GtfsDownloadDao;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadLog;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadStatus;
@@ -34,6 +35,7 @@ public class GtfsDownloadService {
 
   private final GtfsDownloadDao gtfsDownloadDao;
   private final PushoverProvider pushoverProvider;
+  private final GtfsAccessService gtfsAccessService;
   private final Environment environment;
   private final String apiKey;
   private final String gtfsUrl;
@@ -41,12 +43,14 @@ public class GtfsDownloadService {
   public GtfsDownloadService(
     GtfsDownloadDao gtfsDownloadDao,
     PushoverProvider pushoverProvider,
+    GtfsAccessService gtfsAccessService,
     Environment environment,
     @Value("${samtrafiken.api-key}") String apiKey,
     @Value("${samtrafiken.gtfs-url}") String gtfsUrl
   ) {
     this.gtfsDownloadDao = gtfsDownloadDao;
     this.pushoverProvider = pushoverProvider;
+    this.gtfsAccessService = gtfsAccessService;
     this.environment = environment;
     this.apiKey = apiKey;
     this.gtfsUrl = gtfsUrl;
@@ -55,6 +59,11 @@ public class GtfsDownloadService {
   public void runPipeline() {
     downloadIfNeeded();
     unzipIfReady();
+    parseIfReady();
+  }
+
+  public void parseIfReady() {
+    log.info("GTFS parse — not yet implemented");
   }
 
   public void downloadIfNeeded() {

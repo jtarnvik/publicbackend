@@ -1,6 +1,6 @@
 package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 
-import com.tarnvik.publicbackend.commuter.service.GtfsDownloadException;
+import com.tarnvik.publicbackend.commuter.exception.GtfsDownloadException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;

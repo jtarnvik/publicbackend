@@ -1,7 +1,7 @@
 package com.tarnvik.publicbackend.commuter.port.incoming.scheduled;
 
 import com.tarnvik.publicbackend.commuter.model.domain.dao.GtfsDownloadDao;
-import com.tarnvik.publicbackend.commuter.service.GtfsDownloadException;
+import com.tarnvik.publicbackend.commuter.exception.GtfsDownloadException;
 import com.tarnvik.publicbackend.commuter.service.GtfsDownloadService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
