@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="026-1" author="jesper">
+        <createTable tableName="gtfs_monitored_line">
+            <column name="id" type="BIGINT">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="route_short_name" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="transport_mode" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="create_date" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="latest_update" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <sql dbms="postgresql">ALTER TABLE gtfs_monitored_line ENABLE ROW LEVEL SECURITY;</sql>
+
+        <insert tableName="id_gen">
+            <column name="id" valueNumeric="11"/>
+            <column name="gen_name" value="gtfs_monitored_line_gen"/>
+            <column name="gen_value" valueNumeric="10000"/>
+        </insert>
+
+        <insert tableName="gtfs_monitored_line">
+            <column name="id" valueNumeric="10000"/>
+            <column name="route_short_name" value="43"/>
+            <column name="transport_mode" value="TRAIN"/>
+            <column name="create_date" valueDate="now()"/>
+            <column name="latest_update" valueDate="now()"/>
+        </insert>
+        <insert tableName="gtfs_monitored_line">
+            <column name="id" valueNumeric="10001"/>
+            <column name="route_short_name" value="44"/>
+            <column name="transport_mode" value="TRAIN"/>
+            <column name="create_date" valueDate="now()"/>
+            <column name="latest_update" valueDate="now()"/>
+        </insert>
+        <insert tableName="gtfs_monitored_line">
+            <column name="id" valueNumeric="10002"/>
+            <column name="route_short_name" value="117"/>
+            <column name="transport_mode" value="BUS"/>
+            <column name="create_date" valueDate="now()"/>
+            <column name="latest_update" valueDate="now()"/>
+        </insert>
+        <insert tableName="gtfs_monitored_line">
+            <column name="id" valueNumeric="10003"/>
+            <column name="route_short_name" value="112"/>
+            <column name="transport_mode" value="BUS"/>
+            <column name="create_date" valueDate="now()"/>
+            <column name="latest_update" valueDate="now()"/>
+        </insert>
+        <insert tableName="gtfs_monitored_line">
+            <column name="id" valueNumeric="10004"/>
+            <column name="route_short_name" value="17"/>
+            <column name="transport_mode" value="METRO"/>
+            <column name="create_date" valueDate="now()"/>
+            <column name="latest_update" valueDate="now()"/>
+        </insert>
+        <insert tableName="gtfs_monitored_line">
+            <column name="id" valueNumeric="10005"/>
+            <column name="route_short_name" value="18"/>
+            <column name="transport_mode" value="METRO"/>
+            <column name="create_date" valueDate="now()"/>
+            <column name="latest_update" valueDate="now()"/>
+        </insert>
+        <insert tableName="gtfs_monitored_line">
+            <column name="id" valueNumeric="10006"/>
+            <column name="route_short_name" value="19"/>
+            <column name="transport_mode" value="METRO"/>
+            <column name="create_date" valueDate="now()"/>
+            <column name="latest_update" valueDate="now()"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

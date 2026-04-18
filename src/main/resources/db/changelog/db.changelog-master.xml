@@ -30,5 +30,6 @@
     <include file="db/changelog/changes/023-nullable-stop-point-in-user-settings.xml"/>
     <include file="db/changelog/changes/024-create-gtfs-download-log-table.xml"/>
     <include file="db/changelog/changes/025-add-phase-end-times-to-gtfs-download-log.xml"/>
+    <include file="db/changelog/changes/026-create-gtfs-monitored-line-table.xml"/>
 
 </databaseChangeLog>
