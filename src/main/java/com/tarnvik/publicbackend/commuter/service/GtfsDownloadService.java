@@ -35,7 +35,6 @@ public class GtfsDownloadService {
 
   private final GtfsDownloadDao gtfsDownloadDao;
   private final PushoverProvider pushoverProvider;
-  private final GtfsAccessService gtfsAccessService;
   private final Environment environment;
   private final String apiKey;
   private final String gtfsUrl;
@@ -43,27 +42,15 @@ public class GtfsDownloadService {
   public GtfsDownloadService(
     GtfsDownloadDao gtfsDownloadDao,
     PushoverProvider pushoverProvider,
-    GtfsAccessService gtfsAccessService,
     Environment environment,
     @Value("${samtrafiken.api-key}") String apiKey,
     @Value("${samtrafiken.gtfs-url}") String gtfsUrl
   ) {
     this.gtfsDownloadDao = gtfsDownloadDao;
     this.pushoverProvider = pushoverProvider;
-    this.gtfsAccessService = gtfsAccessService;
     this.environment = environment;
     this.apiKey = apiKey;
     this.gtfsUrl = gtfsUrl;
-  }
-
-  public void runPipeline() {
-    downloadIfNeeded();
-    unzipIfReady();
-    parseIfReady();
-  }
-
-  public void parseIfReady() {
-    log.info("GTFS parse — not yet implemented");
   }
 
   public void downloadIfNeeded() {
@@ -151,14 +138,12 @@ public class GtfsDownloadService {
     }
   }
 
-  public void resetToDownloadDone(GtfsDownloadLog entry) {
+  public void clearUnzipDir() {
     try {
       deleteDir(UNZIP_DIR);
     } catch (IOException e) {
-      log.warn("Could not delete unzip dir during reset: {}", e.getMessage());
+      log.warn("Could not delete unzip dir: {}", e.getMessage());
     }
-    gtfsDownloadDao.resetToDownloadDone(entry);
-    log.info("GTFS pipeline reset to DOWNLOAD_DONE for date {}", entry.getDate());
   }
 
   private GtfsDownloadException handlePipelineFailure(GtfsDownloadLog entry, String phase, Exception e) {

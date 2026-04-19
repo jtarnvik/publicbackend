@@ -5,7 +5,7 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadLog;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadStatus;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsStatusResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.mapper.GtfsDownloadLogMapper;
-import com.tarnvik.publicbackend.commuter.service.GtfsDownloadService;
+import com.tarnvik.publicbackend.commuter.service.GtfsPipelineService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,7 +19,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class GtfsAdminController {
   private final GtfsDownloadDao gtfsDownloadDao;
-  private final GtfsDownloadService gtfsDownloadService;
+  private final GtfsPipelineService gtfsPipelineService;
   private final GtfsDownloadLogMapper gtfsDownloadLogMapper;
 
   @GetMapping("/api/admin/gtfs/status")
@@ -30,6 +30,13 @@ public class GtfsAdminController {
       return ResponseEntity.notFound().build();
     }
     return ResponseEntity.ok(gtfsDownloadLogMapper.toResponse(maybeEntry.get()));
+  }
+
+  @PostMapping("/api/admin/gtfs/run-pipeline")
+  @PreAuthorize("hasRole('ADMIN')")
+  public ResponseEntity<Void> runPipeline() {
+    gtfsPipelineService.runPipeline();
+    return ResponseEntity.ok().build();
   }
 
   @PostMapping("/api/admin/gtfs/reset")
@@ -44,7 +51,7 @@ public class GtfsAdminController {
       || entry.getStatus() == GtfsDownloadStatus.DOWNLOAD_DONE) {
       return ResponseEntity.status(409).build();
     }
-    gtfsDownloadService.resetToDownloadDone(entry);
+    gtfsPipelineService.resetToDownloadDone(entry);
     return ResponseEntity.ok().build();
   }
 }

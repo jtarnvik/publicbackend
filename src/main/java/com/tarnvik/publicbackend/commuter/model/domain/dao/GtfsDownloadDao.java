@@ -48,6 +48,20 @@ public class GtfsDownloadDao {
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void markParseStart(GtfsDownloadLog entry) {
+    entry.setStatus(GtfsDownloadStatus.PARSE_START);
+    entry.setParseStartTime(LocalDateTime.now());
+    downloadLogRepository.save(entry);
+  }
+
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void markParseDone(GtfsDownloadLog entry) {
+    entry.setStatus(GtfsDownloadStatus.PARSE_DONE);
+    entry.setParseEndTime(LocalDateTime.now());
+    downloadLogRepository.save(entry);
+  }
+
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void updateFailed(GtfsDownloadLog entry, String errorMessage) {
     entry.setStatus(GtfsDownloadStatus.FAILED);
     entry.setErrorMessage(errorMessage);

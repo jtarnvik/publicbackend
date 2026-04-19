@@ -2,7 +2,7 @@ package com.tarnvik.publicbackend.commuter.port.incoming.scheduled;
 
 import com.tarnvik.publicbackend.commuter.model.domain.dao.GtfsDownloadDao;
 import com.tarnvik.publicbackend.commuter.exception.GtfsDownloadException;
-import com.tarnvik.publicbackend.commuter.service.GtfsDownloadService;
+import com.tarnvik.publicbackend.commuter.service.GtfsPipelineService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -18,7 +18,7 @@ import java.time.LocalDate;
 @RequiredArgsConstructor
 @Slf4j
 public class GtfsDownloadJob {
-  private final GtfsDownloadService gtfsDownloadService;
+  private final GtfsPipelineService gtfsPipelineService;
   private final GtfsDownloadDao gtfsDownloadDao;
 
   @EventListener(ApplicationReadyEvent.class)
@@ -40,7 +40,7 @@ public class GtfsDownloadJob {
 
   private void runPipeline() {
     try {
-      gtfsDownloadService.runPipeline();
+      gtfsPipelineService.runPipeline();
     } catch (GtfsDownloadException e) {
       log.error("GTFS pipeline stopped: {}", e.getMessage());
     }
