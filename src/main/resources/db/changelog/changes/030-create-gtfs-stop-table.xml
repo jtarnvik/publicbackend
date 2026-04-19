@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="030-1" author="jesper">
+        <createTable tableName="gtfs_stop">
+            <column name="stop_id" type="VARCHAR(50)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="stop_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="stop_lat" type="DOUBLE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="stop_lon" type="DOUBLE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="location_type" type="INT"/>
+            <column name="parent_station" type="VARCHAR(50)"/>
+        </createTable>
+        <sql dbms="postgresql">ALTER TABLE gtfs_stop ENABLE ROW LEVEL SECURITY;</sql>
+    </changeSet>
+
+</databaseChangeLog>

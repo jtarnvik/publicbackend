@@ -7,9 +7,11 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadStatus
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredLine;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsMonitoredLineRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsRouteRepository;
+import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopTimeRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsTripRepository;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRoute;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStop;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTime;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeId;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTrip;
@@ -46,6 +48,7 @@ public class GtfsParseService {
   private final GtfsRouteRepository gtfsRouteRepository;
   private final GtfsTripRepository gtfsTripRepository;
   private final GtfsStopTimeRepository gtfsStopTimeRepository;
+  private final GtfsStopRepository gtfsStopRepository;
   private final PushoverProvider pushoverProvider;
   private final EntityManager entityManager;
 
@@ -73,8 +76,9 @@ public class GtfsParseService {
       Set<String> routeIds = parseRoutes(agencyId, monitoredLines);
       TripParseResult tripResult = parseTrips(routeIds);
       Set<String> stopIds = parseStopTimes(tripResult.tripIds());
-      log.info("GTFS parse complete: {} routes, {} trips, {} unique stops retained — committing to database",
-        routeIds.size(), tripResult.tripIds().size(), stopIds.size());
+      int stopCount = parseStops(stopIds);
+      log.info("GTFS parse complete: {} routes, {} trips, {} stops — committing to database",
+        routeIds.size(), tripResult.tripIds().size(), stopCount);
       gtfsDownloadDao.markParseDone(entry);
     } catch (Exception e) {
       throw handlePipelineFailure(entry, "parse", e);
@@ -273,6 +277,49 @@ public class GtfsParseService {
 
     log.info("Retained {} stop times from stop_times.txt ({} unique stops)", totalCount, retainedStopIds.size());
     return retainedStopIds;
+  }
+
+  private int parseStops(Set<String> stopIds) throws IOException {
+    log.info("Parsing stops.txt");
+    Path stopsFile = UNZIP_DIR.resolve("stops.txt");
+    List<GtfsStop> retained = new ArrayList<>();
+
+    try (BufferedReader reader = Files.newBufferedReader(stopsFile)) {
+      String headerLine = reader.readLine();
+      if (headerLine == null) {
+        throw new GtfsDownloadException("stops.txt is empty", null);
+      }
+      Map<String, Integer> headers = indexHeaders(headerLine);
+      String line;
+      while ((line = reader.readLine()) != null) {
+        String[] fields = splitCsvLine(line);
+        String stopId = getField(fields, headers, "stop_id");
+        if (!stopIds.contains(stopId)) {
+          continue;
+        }
+        String latStr = getField(fields, headers, "stop_lat");
+        String lonStr = getField(fields, headers, "stop_lon");
+        try {
+          GtfsStop stop = new GtfsStop();
+          stop.setStopId(stopId);
+          stop.setStopName(getField(fields, headers, "stop_name"));
+          stop.setStopLat(Double.parseDouble(latStr));
+          stop.setStopLon(Double.parseDouble(lonStr));
+          String locationTypeStr = getField(fields, headers, "location_type");
+          stop.setLocationType(locationTypeStr.isBlank() ? null : Integer.parseInt(locationTypeStr));
+          String parentStation = getField(fields, headers, "parent_station");
+          stop.setParentStation(parentStation.isBlank() ? null : parentStation);
+          retained.add(stop);
+        } catch (NumberFormatException e) {
+          log.warn("Skipping stop {} with unparseable coordinates: lat={}, lon={}", stopId, latStr, lonStr);
+        }
+      }
+    }
+
+    gtfsStopRepository.deleteAllInBatch();
+    gtfsStopRepository.saveAll(retained);
+    log.info("Retained {} stops from stops.txt", retained.size());
+    return retained.size();
   }
 
   private boolean matchesMonitoredLine(String routeShortName, int routeType, List<GtfsMonitoredLine> monitoredLines) {

@@ -34,5 +34,6 @@
     <include file="db/changelog/changes/027-create-gtfs-route-table.xml"/>
     <include file="db/changelog/changes/028-create-gtfs-trip-table.xml"/>
     <include file="db/changelog/changes/029-create-gtfs-stop-time-table.xml"/>
+    <include file="db/changelog/changes/030-create-gtfs-stop-table.xml"/>
 
 </databaseChangeLog>
