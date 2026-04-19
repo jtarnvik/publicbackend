@@ -7,6 +7,7 @@ import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsStatusRespo
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.mapper.GtfsDownloadLogMapper;
 import com.tarnvik.publicbackend.commuter.service.GtfsPipelineService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,6 +18,7 @@ import java.util.Optional;
 
 @RestController
 @RequiredArgsConstructor
+@Slf4j
 public class GtfsAdminController {
   private final GtfsDownloadDao gtfsDownloadDao;
   private final GtfsPipelineService gtfsPipelineService;
@@ -52,6 +54,7 @@ public class GtfsAdminController {
       return ResponseEntity.status(409).build();
     }
     gtfsPipelineService.resetToDownloadDone(entry);
+    log.info("GTFS pipeline reset complete for date {}", entry.getDate());
     return ResponseEntity.ok().build();
   }
 }

@@ -7,8 +7,11 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadStatus
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredLine;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsMonitoredLineRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsRouteRepository;
+import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopTimeRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsTripRepository;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRoute;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTime;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeId;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTrip;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.pushover.PushoverProvider;
 import jakarta.persistence.EntityManager;
@@ -42,8 +45,11 @@ public class GtfsParseService {
   private final GtfsMonitoredLineRepository gtfsMonitoredLineRepository;
   private final GtfsRouteRepository gtfsRouteRepository;
   private final GtfsTripRepository gtfsTripRepository;
+  private final GtfsStopTimeRepository gtfsStopTimeRepository;
   private final PushoverProvider pushoverProvider;
   private final EntityManager entityManager;
+
+  private static final int STOP_TIME_BATCH_SIZE = 500;
 
   private record TripParseResult(Set<String> tripIds, Set<String> serviceIds) {}
 
@@ -66,8 +72,9 @@ public class GtfsParseService {
       List<GtfsMonitoredLine> monitoredLines = gtfsMonitoredLineRepository.findAll();
       Set<String> routeIds = parseRoutes(agencyId, monitoredLines);
       TripParseResult tripResult = parseTrips(routeIds);
-      log.info("GTFS parse complete: {} routes, {} trips retained — committing to database",
-        routeIds.size(), tripResult.tripIds().size());
+      Set<String> stopIds = parseStopTimes(tripResult.tripIds());
+      log.info("GTFS parse complete: {} routes, {} trips, {} unique stops retained — committing to database",
+        routeIds.size(), tripResult.tripIds().size(), stopIds.size());
       gtfsDownloadDao.markParseDone(entry);
     } catch (Exception e) {
       throw handlePipelineFailure(entry, "parse", e);
@@ -137,7 +144,7 @@ public class GtfsParseService {
       }
     }
 
-    gtfsRouteRepository.deleteAll();
+    gtfsRouteRepository.deleteAllInBatch();
     gtfsRouteRepository.saveAll(retained);
     log.info("Retained {} routes from routes.txt", retained.size());
 
@@ -181,7 +188,7 @@ public class GtfsParseService {
       }
     }
 
-    gtfsTripRepository.deleteAll();
+    gtfsTripRepository.deleteAllInBatch();
     gtfsTripRepository.saveAll(retained);
     log.info("Retained {} trips from trips.txt", retained.size());
 
@@ -192,6 +199,80 @@ public class GtfsParseService {
       serviceIds.add(trip.getServiceId());
     }
     return new TripParseResult(tripIds, serviceIds);
+  }
+
+  private Set<String> parseStopTimes(Set<String> tripIds) throws IOException {
+    log.info("Parsing stop_times.txt");
+    Path stopTimesFile = UNZIP_DIR.resolve("stop_times.txt");
+    Set<String> retainedStopIds = new HashSet<>();
+
+    gtfsStopTimeRepository.deleteAllInBatch();
+
+    List<GtfsStopTime> batch = new ArrayList<>();
+    int totalCount = 0;
+
+    try (BufferedReader reader = Files.newBufferedReader(stopTimesFile)) {
+      String headerLine = reader.readLine();
+      if (headerLine == null) {
+        throw new GtfsDownloadException("stop_times.txt is empty", null);
+      }
+      Map<String, Integer> headers = indexHeaders(headerLine);
+      String line;
+      while ((line = reader.readLine()) != null) {
+        String[] fields = splitCsvLine(line);
+        String tripId = getField(fields, headers, "trip_id");
+        if (!tripIds.contains(tripId)) {
+          continue;
+        }
+        String stopSequenceStr = getField(fields, headers, "stop_sequence");
+        int stopSequence;
+        try {
+          stopSequence = Integer.parseInt(stopSequenceStr);
+        } catch (NumberFormatException e) {
+          log.warn("Skipping stop_time with non-numeric stop_sequence: {}", stopSequenceStr);
+          continue;
+        }
+        String stopId = getField(fields, headers, "stop_id");
+        retainedStopIds.add(stopId);
+
+        GtfsStopTimeId id = new GtfsStopTimeId();
+        id.setTripId(tripId);
+        id.setStopSequence(stopSequence);
+
+        GtfsStopTime stopTime = new GtfsStopTime();
+        stopTime.setId(id);
+        stopTime.setStopId(stopId);
+        stopTime.setArrivalTime(getField(fields, headers, "arrival_time"));
+        stopTime.setDepartureTime(getField(fields, headers, "departure_time"));
+        String distStr = getField(fields, headers, "shape_dist_traveled");
+        stopTime.setShapeDistTraveled(distStr.isBlank() ? null : Double.parseDouble(distStr));
+        String headsign = getField(fields, headers, "stop_headsign");
+        stopTime.setStopHeadsign(headsign.isBlank() ? null : headsign);
+
+        batch.add(stopTime);
+
+        if (batch.size() == STOP_TIME_BATCH_SIZE) {
+          gtfsStopTimeRepository.saveAll(batch);
+          entityManager.flush();
+          entityManager.clear();
+          totalCount += batch.size();
+          batch.clear();
+          if (totalCount % 10_000 == 0) {
+            log.info("stop_times.txt progress: {} rows written", totalCount);
+          }
+        }
+      }
+    }
+
+    if (!batch.isEmpty()) {
+      gtfsStopTimeRepository.saveAll(batch);
+      entityManager.flush();
+      entityManager.clear();
+      totalCount += batch.size();
+    }
+
+    log.info("Retained {} stop times from stop_times.txt ({} unique stops)", totalCount, retainedStopIds.size());
+    return retainedStopIds;
   }
 
   private boolean matchesMonitoredLine(String routeShortName, int routeType, List<GtfsMonitoredLine> monitoredLines) {

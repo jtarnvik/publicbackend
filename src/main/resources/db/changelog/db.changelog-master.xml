@@ -33,5 +33,6 @@
     <include file="db/changelog/changes/026-create-gtfs-monitored-line-table.xml"/>
     <include file="db/changelog/changes/027-create-gtfs-route-table.xml"/>
     <include file="db/changelog/changes/028-create-gtfs-trip-table.xml"/>
+    <include file="db/changelog/changes/029-create-gtfs-stop-time-table.xml"/>
 
 </databaseChangeLog>
