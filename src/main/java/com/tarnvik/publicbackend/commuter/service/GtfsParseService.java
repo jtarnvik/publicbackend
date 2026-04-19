@@ -22,6 +22,7 @@ import com.tarnvik.publicbackend.commuter.port.outgoing.rest.pushover.PushoverPr
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -133,7 +134,9 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 @Slf4j
 public class GtfsParseService {
-  private static final Path UNZIP_DIR = Path.of("/tmp/sl-gtfs-cache/unzipped");
+  @Value("${gtfs.unzip-dir:/tmp/sl-gtfs-cache/unzipped}")
+  private Path unzipDir;
+
   private static final String SL_AGENCY_NAME = "Storstockholms Lokaltrafik";
 
   private final GtfsDownloadDao gtfsDownloadDao;
@@ -182,7 +185,7 @@ public class GtfsParseService {
 
   private String parseAgencyId() throws IOException {
     log.info("Parsing agency.txt");
-    Path agencyFile = UNZIP_DIR.resolve("agency.txt");
+    Path agencyFile = unzipDir.resolve("agency.txt");
     try (BufferedReader reader = Files.newBufferedReader(agencyFile)) {
       String headerLine = reader.readLine();
       if (headerLine == null) {
@@ -205,7 +208,7 @@ public class GtfsParseService {
 
   private Set<String> parseRoutes(String agencyId, List<GtfsMonitoredLine> monitoredLines) throws IOException {
     log.info("Parsing routes.txt");
-    Path routesFile = UNZIP_DIR.resolve("routes.txt");
+    Path routesFile = unzipDir.resolve("routes.txt");
     List<GtfsRoute> retained = new ArrayList<>();
 
     try (BufferedReader reader = Files.newBufferedReader(routesFile)) {
@@ -256,7 +259,7 @@ public class GtfsParseService {
 
   private TripParseResult parseTrips(Set<String> routeIds) throws IOException {
     log.info("Parsing trips.txt");
-    Path tripsFile = UNZIP_DIR.resolve("trips.txt");
+    Path tripsFile = unzipDir.resolve("trips.txt");
     List<GtfsTrip> retained = new ArrayList<>();
 
     try (BufferedReader reader = Files.newBufferedReader(tripsFile)) {
@@ -302,7 +305,7 @@ public class GtfsParseService {
 
   private Set<String> parseStopTimes(Set<String> tripIds) throws IOException {
     log.info("Parsing stop_times.txt");
-    Path stopTimesFile = UNZIP_DIR.resolve("stop_times.txt");
+    Path stopTimesFile = unzipDir.resolve("stop_times.txt");
     Set<String> retainedStopIds = new HashSet<>();
 
     gtfsStopTimeRepository.deleteAllInBatch();
@@ -376,7 +379,7 @@ public class GtfsParseService {
 
   private int parseStops(Set<String> stopIds) throws IOException {
     log.info("Parsing stops.txt");
-    Path stopsFile = UNZIP_DIR.resolve("stops.txt");
+    Path stopsFile = unzipDir.resolve("stops.txt");
     List<GtfsStop> retained = new ArrayList<>();
 
     try (BufferedReader reader = Files.newBufferedReader(stopsFile)) {
@@ -419,7 +422,7 @@ public class GtfsParseService {
 
   private int parseCalendarDates(Set<String> serviceIds) throws IOException {
     log.info("Parsing calendar_dates.txt");
-    Path calendarDatesFile = UNZIP_DIR.resolve("calendar_dates.txt");
+    Path calendarDatesFile = unzipDir.resolve("calendar_dates.txt");
     List<GtfsCalendarDate> retained = new ArrayList<>();
 
     try (BufferedReader reader = Files.newBufferedReader(calendarDatesFile)) {

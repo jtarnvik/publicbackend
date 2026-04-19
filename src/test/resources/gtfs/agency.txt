@@ -1,0 +1,3 @@
+agency_id,agency_name,agency_url,agency_timezone
+SL001,AB Storstockholms Lokaltrafik,https://sl.se,Europe/Stockholm
+OTHER001,Other Transit Authority,https://other.se,Europe/Stockholm

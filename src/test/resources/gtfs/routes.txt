@@ -1,0 +1,6 @@
+route_id,agency_id,route_short_name,route_long_name,route_type
+route-43,SL001,43,Pendeltåg linje 43,100
+route-43x,SL001,43X,Pendeltåg linje 43X,100
+route-117,SL001,117,Buss 117,700
+route-999,SL001,999,Non-monitored bus,700
+route-other,OTHER001,43,Other agency route,100

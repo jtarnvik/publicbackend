@@ -1,0 +1,8 @@
+service_id,date,exception_type
+svc-A,20260419,1
+svc-A,20260420,1
+svc-A,20260421,2
+svc-B,20260419,1
+svc-C,20260419,1
+svc-D,20260419,1
+svc-E,20260419,1

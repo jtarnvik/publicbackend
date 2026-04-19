@@ -1,0 +1,7 @@
+route_id,service_id,trip_id,direction_id,shape_id
+route-43,svc-A,trip-43-1,0,
+route-43,svc-A,trip-43-2,1,
+route-43x,svc-B,trip-43x-1,0,
+route-117,svc-C,trip-117-1,0,
+route-999,svc-D,trip-999-1,0,
+route-other,svc-E,trip-other-1,0,

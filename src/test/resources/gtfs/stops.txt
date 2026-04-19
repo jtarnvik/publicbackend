@@ -1,0 +1,8 @@
+stop_id,stop_name,stop_lat,stop_lon,location_type,parent_station
+stop-A,Bålsta,59.563,17.009,0,parent-1
+stop-B,Västerhaninge,58.945,18.084,0,parent-2
+stop-C,Nynäshamn,58.904,17.945,0,parent-3
+stop-D,Skogslöparvägen,59.370,17.901,0,parent-4
+stop-E,Skogslöparvägen,59.371,17.902,0,parent-4
+stop-F,ExcludedBusStop,59.000,18.000,0,
+parent-1,Bålsta Station,59.563,17.009,1,

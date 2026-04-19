@@ -1,0 +1,12 @@
+trip_id,arrival_time,departure_time,stop_id,stop_sequence,stop_headsign,shape_dist_traveled,pickup_type,drop_off_type
+trip-43-1,08:00:00,08:01:00,stop-A,1,Nynäshamn,0.0,0,1
+trip-43-1,08:15:00,08:16:00,stop-B,2,Nynäshamn,5000.0,0,0
+trip-43-1,25:30:00,25:31:00,stop-C,3,Nynäshamn,10000.0,0,1
+trip-43-2,09:00:00,09:01:00,stop-B,1,Bålsta,,0,1
+trip-43-2,09:15:00,09:16:00,stop-A,2,Bålsta,5000.0,1,0
+trip-43x-1,08:30:00,08:31:00,stop-A,1,Nynäshamn,0.0,0,0
+trip-43x-1,08:45:00,08:46:00,stop-C,2,Nynäshamn,10000.0,0,0
+trip-117-1,07:00:00,07:01:00,stop-D,1,Skogslöparvägen,0.0,0,0
+trip-117-1,07:10:00,07:11:00,stop-E,2,Skogslöparvägen,500.0,0,0
+trip-999-1,10:00:00,10:01:00,stop-F,1,Excluded,0.0,0,0
+trip-other-1,11:00:00,11:01:00,stop-G,1,Excluded,0.0,0,0
