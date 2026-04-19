@@ -6,10 +6,13 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadLog;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadStatus;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredLine;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsMonitoredLineRepository;
+import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsCalendarDateRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsRouteRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopTimeRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsTripRepository;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsCalendarDate;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsCalendarDateId;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRoute;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStop;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTime;
@@ -27,6 +30,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,6 +40,95 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+/**
+ * Parses the static GTFS feed for Storstockholms Lokaltrafik (SL) and persists a filtered subset
+ * of the data to the database. The parsed data is the foundation for all vehicle tracking and
+ * schedule queries in this application.
+ *
+ * <h2>What is GTFS?</h2>
+ * GTFS (General Transit Feed Specification) is a standard format for public transit schedules.
+ * Samtrafiken publishes a regional feed covering all operators in Sweden. The feed is a zip archive
+ * containing a set of CSV files. This service reads the unzipped files from
+ * {@code /tmp/sl-gtfs-cache/unzipped/}, which are placed there by {@link GtfsDownloadService}.
+ *
+ * <h2>Why filter?</h2>
+ * The full regional feed covers all operators and thousands of lines. We only care about a small
+ * set of monitored lines (pendeltåg 43/44, bus 117/112, metro 17/18/19), configured in the
+ * {@code gtfs_monitored_line} table. The full {@code stop_times.txt} alone is ~140 MB — loading
+ * and persisting the entire feed would be wasteful. Instead, each parse step filters aggressively
+ * and only retains data that belongs to the monitored lines.
+ *
+ * <h2>Parse order and the filtering dependency chain</h2>
+ * The files must be parsed in a specific order because each step produces a set of IDs that the
+ * next step uses as its filter. Skipping ahead or reordering would require loading an unfiltered
+ * file (too large) or re-reading an earlier file:
+ * <ol>
+ *   <li>{@code agency.txt} — resolves the SL {@code agency_id}. Not hardcoded because it may
+ *       change between feed versions.</li>
+ *   <li>{@code routes.txt} — filtered by agency + transport mode + route name pattern.
+ *       Produces: {@code routeIds}</li>
+ *   <li>{@code trips.txt} — filtered by {@code routeIds}.
+ *       Produces: {@code tripIds} (for stop_times) and {@code serviceIds} (for calendar_dates)</li>
+ *   <li>{@code stop_times.txt} — filtered by {@code tripIds}. The largest file (~90,000 rows after
+ *       filtering). Produces: {@code stopIds} (the unique stops actually served by these trips)</li>
+ *   <li>{@code stops.txt} — filtered by {@code stopIds}. Small (~250 rows).</li>
+ *   <li>{@code calendar_dates.txt} — filtered by {@code serviceIds}. Defines which dates each
+ *       service runs. Only {@code exception_type=1} (runs this date) rows are stored — type 2
+ *       (cancellation overrides) are irrelevant because {@code calendar.txt} defines no base
+ *       schedule in the Samtrafiken feed.</li>
+ * </ol>
+ * The intermediate ID sets ({@code routeIds}, {@code tripIds}, etc.) flow as local variables
+ * through {@link #parseIfReady()} — no shared instance state.
+ *
+ * <h2>Transaction architecture</h2>
+ * {@link #parseIfReady()} is the single {@code @Transactional} boundary. All file parsing,
+ * deletes, and inserts run within this one transaction. On success it commits atomically —
+ * concurrent readers using the old data see a consistent snapshot right up until the commit,
+ * at which point all new data becomes visible at once. On failure the entire transaction rolls
+ * back and the existing data is preserved intact.
+ * <p>
+ * Status updates ({@code PARSE_START}, {@code PARSE_DONE}, {@code FAILED}) go through
+ * {@link GtfsDownloadDao} methods annotated with {@code REQUIRES_NEW}. This propagation suspends
+ * the outer transaction and commits the status update independently, so the progress is always
+ * visible in the database regardless of whether the parse transaction eventually rolls back.
+ * <p>
+ * <strong>The {@code detach(entry)} call is critical.</strong> {@code GtfsDownloadDao} methods
+ * mutate the {@code GtfsDownloadLog entry} object in-place before saving it in the inner
+ * {@code REQUIRES_NEW} transaction. Without detaching, the outer session continues to track
+ * {@code entry} as dirty. Any subsequent {@code entityManager.flush()} call (used during
+ * {@code stop_times.txt} batch inserts) would flush those dirty fields as an UPDATE on
+ * {@code gtfs_download_log} within the outer transaction — acquiring an exclusive row lock.
+ * When {@code markParseDone()} then tries to update the same row in its own {@code REQUIRES_NEW}
+ * transaction, it is blocked by that lock for up to MySQL's {@code innodb_lock_wait_timeout}
+ * (default 50 seconds), at which point it fails. Detaching removes {@code entry} from the outer
+ * session entirely so the outer transaction never touches {@code gtfs_download_log}.
+ *
+ * <h2>Delete strategy</h2>
+ * Each parse step deletes all existing rows for its table before inserting the new set.
+ * {@code deleteAllInBatch()} is used throughout — it issues a single {@code DELETE FROM table}
+ * SQL statement without loading entities first. {@code deleteAll()} would load every row into
+ * memory before deleting, which is prohibitively slow for {@code gtfs_stop_time} (~90,000 rows).
+ *
+ * <h2>Batch inserts for stop_times</h2>
+ * {@code stop_times.txt} produces ~90,000 rows. Without batching, Hibernate would accumulate all
+ * 90,000 managed entities in the persistence context until the transaction commits, wasting heap.
+ * Instead, rows are inserted in batches of {@value #STOP_TIME_BATCH_SIZE}: after each
+ * {@code saveAll(batch)}, {@code entityManager.flush()} pushes the SQL to the database and
+ * {@code entityManager.clear()} evicts the entities from the persistence context. This keeps heap
+ * usage constant regardless of file size.
+ * <p>
+ * True JDBC-level batching (rewriting 500 inserts into one multi-row statement) requires
+ * {@code spring.jpa.properties.hibernate.jdbc.batch_size=500} in {@code application.properties}
+ * and {@code rewriteBatchedStatements=true} in the JDBC URL (MySQL only — PostgreSQL batches
+ * correctly by default).
+ *
+ * <h2>After parsing</h2>
+ * This service does not touch the in-memory {@link GtfsDataset} cache. Once
+ * {@link #parseIfReady()} returns and the transaction commits, {@link GtfsPipelineService}
+ * calls {@link GtfsAccessService#rebuildDataset()} to reload the newly persisted data into
+ * memory. Keeping the in-memory rebuild outside this service ensures the cache is only updated
+ * after the transaction has fully committed — not while it is still in progress.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -49,6 +142,7 @@ public class GtfsParseService {
   private final GtfsTripRepository gtfsTripRepository;
   private final GtfsStopTimeRepository gtfsStopTimeRepository;
   private final GtfsStopRepository gtfsStopRepository;
+  private final GtfsCalendarDateRepository gtfsCalendarDateRepository;
   private final PushoverProvider pushoverProvider;
   private final EntityManager entityManager;
 
@@ -77,8 +171,9 @@ public class GtfsParseService {
       TripParseResult tripResult = parseTrips(routeIds);
       Set<String> stopIds = parseStopTimes(tripResult.tripIds());
       int stopCount = parseStops(stopIds);
-      log.info("GTFS parse complete: {} routes, {} trips, {} stops — committing to database",
-        routeIds.size(), tripResult.tripIds().size(), stopCount);
+      int calendarDateCount = parseCalendarDates(tripResult.serviceIds());
+      log.info("GTFS parse complete: {} routes, {} trips, {} stops, {} calendar dates — committing to database",
+        routeIds.size(), tripResult.tripIds().size(), stopCount, calendarDateCount);
       gtfsDownloadDao.markParseDone(entry);
     } catch (Exception e) {
       throw handlePipelineFailure(entry, "parse", e);
@@ -319,6 +414,48 @@ public class GtfsParseService {
     gtfsStopRepository.deleteAllInBatch();
     gtfsStopRepository.saveAll(retained);
     log.info("Retained {} stops from stops.txt", retained.size());
+    return retained.size();
+  }
+
+  private int parseCalendarDates(Set<String> serviceIds) throws IOException {
+    log.info("Parsing calendar_dates.txt");
+    Path calendarDatesFile = UNZIP_DIR.resolve("calendar_dates.txt");
+    List<GtfsCalendarDate> retained = new ArrayList<>();
+
+    try (BufferedReader reader = Files.newBufferedReader(calendarDatesFile)) {
+      String headerLine = reader.readLine();
+      if (headerLine == null) {
+        throw new GtfsDownloadException("calendar_dates.txt is empty", null);
+      }
+      Map<String, Integer> headers = indexHeaders(headerLine);
+      String line;
+      while ((line = reader.readLine()) != null) {
+        String[] fields = splitCsvLine(line);
+        String serviceId = getField(fields, headers, "service_id");
+        if (!serviceIds.contains(serviceId)) {
+          continue;
+        }
+        String exceptionTypeStr = getField(fields, headers, "exception_type");
+        if (!"1".equals(exceptionTypeStr)) {
+          continue;
+        }
+        String dateStr = getField(fields, headers, "date");
+        LocalDate serviceDate = LocalDate.parse(dateStr, DateTimeFormatter.BASIC_ISO_DATE);
+
+        GtfsCalendarDateId id = new GtfsCalendarDateId();
+        id.setServiceId(serviceId);
+        id.setServiceDate(serviceDate);
+
+        GtfsCalendarDate calendarDate = new GtfsCalendarDate();
+        calendarDate.setId(id);
+        calendarDate.setExceptionType(1);
+        retained.add(calendarDate);
+      }
+    }
+
+    gtfsCalendarDateRepository.deleteAllInBatch();
+    gtfsCalendarDateRepository.saveAll(retained);
+    log.info("Retained {} calendar dates from calendar_dates.txt", retained.size());
     return retained.size();
   }
 

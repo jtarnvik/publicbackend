@@ -2,6 +2,7 @@ package com.tarnvik.publicbackend.commuter.service;
 
 import com.tarnvik.publicbackend.commuter.model.domain.dao.GtfsDownloadDao;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadLog;
+import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsCalendarDateRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsRouteRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopTimeRepository;
@@ -23,6 +24,7 @@ public class GtfsPipelineService {
   private final GtfsTripRepository gtfsTripRepository;
   private final GtfsStopTimeRepository gtfsStopTimeRepository;
   private final GtfsStopRepository gtfsStopRepository;
+  private final GtfsCalendarDateRepository gtfsCalendarDateRepository;
 
   public void runPipeline() {
     gtfsDownloadService.downloadIfNeeded();
@@ -37,6 +39,7 @@ public class GtfsPipelineService {
     gtfsDownloadService.clearUnzipDir();
     gtfsStopTimeRepository.deleteAllInBatch();
     gtfsStopRepository.deleteAllInBatch();
+    gtfsCalendarDateRepository.deleteAllInBatch();
     gtfsTripRepository.deleteAllInBatch();
     gtfsRouteRepository.deleteAllInBatch();
     gtfsDownloadDao.resetToDownloadDone(entry);
