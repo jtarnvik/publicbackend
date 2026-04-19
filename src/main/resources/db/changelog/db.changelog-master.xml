@@ -32,5 +32,6 @@
     <include file="db/changelog/changes/025-add-phase-end-times-to-gtfs-download-log.xml"/>
     <include file="db/changelog/changes/026-create-gtfs-monitored-line-table.xml"/>
     <include file="db/changelog/changes/027-create-gtfs-route-table.xml"/>
+    <include file="db/changelog/changes/028-create-gtfs-trip-table.xml"/>
 
 </databaseChangeLog>

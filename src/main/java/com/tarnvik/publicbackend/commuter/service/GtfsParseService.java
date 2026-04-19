@@ -7,8 +7,11 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadStatus
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredLine;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsMonitoredLineRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsRouteRepository;
+import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsTripRepository;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRoute;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTrip;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.pushover.PushoverProvider;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,7 +41,11 @@ public class GtfsParseService {
   private final GtfsDownloadDao gtfsDownloadDao;
   private final GtfsMonitoredLineRepository gtfsMonitoredLineRepository;
   private final GtfsRouteRepository gtfsRouteRepository;
+  private final GtfsTripRepository gtfsTripRepository;
   private final PushoverProvider pushoverProvider;
+  private final EntityManager entityManager;
+
+  private record TripParseResult(Set<String> tripIds, Set<String> serviceIds) {}
 
   @Transactional
   public void parseIfReady() {
@@ -52,12 +59,15 @@ public class GtfsParseService {
 
     GtfsDownloadLog entry = maybeEntry.get();
     gtfsDownloadDao.markParseStart(entry);
+    entityManager.detach(entry);
 
     try {
       String agencyId = parseAgencyId();
       List<GtfsMonitoredLine> monitoredLines = gtfsMonitoredLineRepository.findAll();
       Set<String> routeIds = parseRoutes(agencyId, monitoredLines);
-      log.info("GTFS parse complete: {} routes retained", routeIds.size());
+      TripParseResult tripResult = parseTrips(routeIds);
+      log.info("GTFS parse complete: {} routes, {} trips retained — committing to database",
+        routeIds.size(), tripResult.tripIds().size());
       gtfsDownloadDao.markParseDone(entry);
     } catch (Exception e) {
       throw handlePipelineFailure(entry, "parse", e);
@@ -65,6 +75,7 @@ public class GtfsParseService {
   }
 
   private String parseAgencyId() throws IOException {
+    log.info("Parsing agency.txt");
     Path agencyFile = UNZIP_DIR.resolve("agency.txt");
     try (BufferedReader reader = Files.newBufferedReader(agencyFile)) {
       String headerLine = reader.readLine();
@@ -87,6 +98,7 @@ public class GtfsParseService {
   }
 
   private Set<String> parseRoutes(String agencyId, List<GtfsMonitoredLine> monitoredLines) throws IOException {
+    log.info("Parsing routes.txt");
     Path routesFile = UNZIP_DIR.resolve("routes.txt");
     List<GtfsRoute> retained = new ArrayList<>();
 
@@ -127,13 +139,59 @@ public class GtfsParseService {
 
     gtfsRouteRepository.deleteAll();
     gtfsRouteRepository.saveAll(retained);
-    log.info("Stored {} routes in gtfs_route", retained.size());
+    log.info("Retained {} routes from routes.txt", retained.size());
 
     Set<String> routeIds = new HashSet<>();
     for (GtfsRoute route : retained) {
       routeIds.add(route.getRouteId());
     }
     return routeIds;
+  }
+
+  private TripParseResult parseTrips(Set<String> routeIds) throws IOException {
+    log.info("Parsing trips.txt");
+    Path tripsFile = UNZIP_DIR.resolve("trips.txt");
+    List<GtfsTrip> retained = new ArrayList<>();
+
+    try (BufferedReader reader = Files.newBufferedReader(tripsFile)) {
+      String headerLine = reader.readLine();
+      if (headerLine == null) {
+        throw new GtfsDownloadException("trips.txt is empty", null);
+      }
+      Map<String, Integer> headers = indexHeaders(headerLine);
+      String line;
+      while ((line = reader.readLine()) != null) {
+        String[] fields = splitCsvLine(line);
+        String routeId = getField(fields, headers, "route_id");
+        if (!routeIds.contains(routeId)) {
+          continue;
+        }
+        GtfsTrip trip = new GtfsTrip();
+        trip.setTripId(getField(fields, headers, "trip_id"));
+        trip.setRouteId(routeId);
+        trip.setServiceId(getField(fields, headers, "service_id"));
+        String directionIdStr = getField(fields, headers, "direction_id");
+        try {
+          trip.setDirectionId(Integer.parseInt(directionIdStr));
+        } catch (NumberFormatException e) {
+          log.warn("Skipping trip with non-numeric direction_id: {}", directionIdStr);
+          continue;
+        }
+        retained.add(trip);
+      }
+    }
+
+    gtfsTripRepository.deleteAll();
+    gtfsTripRepository.saveAll(retained);
+    log.info("Retained {} trips from trips.txt", retained.size());
+
+    Set<String> tripIds = new HashSet<>();
+    Set<String> serviceIds = new HashSet<>();
+    for (GtfsTrip trip : retained) {
+      tripIds.add(trip.getTripId());
+      serviceIds.add(trip.getServiceId());
+    }
+    return new TripParseResult(tripIds, serviceIds);
   }
 
   private boolean matchesMonitoredLine(String routeShortName, int routeType, List<GtfsMonitoredLine> monitoredLines) {
