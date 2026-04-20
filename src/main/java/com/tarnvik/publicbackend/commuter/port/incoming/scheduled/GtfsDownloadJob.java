@@ -27,7 +27,7 @@ public class GtfsDownloadJob {
     runPipeline();
   }
 
-  @Scheduled(cron = "0 0 5 * * *")
+  @Scheduled(cron = "0 0 5 * * *", zone = "Europe/Stockholm")
   public void scheduledDownload() {
     log.info("Running scheduled GTFS pipeline at 05:00");
     runPipeline();
