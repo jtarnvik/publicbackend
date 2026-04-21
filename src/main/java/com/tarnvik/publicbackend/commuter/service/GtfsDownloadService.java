@@ -43,8 +43,8 @@ public class GtfsDownloadService {
     GtfsDownloadDao gtfsDownloadDao,
     PushoverProvider pushoverProvider,
     Environment environment,
-    @Value("${samtrafiken.api-key}") String apiKey,
-    @Value("${samtrafiken.gtfs-url}") String gtfsUrl
+    @Value("${samtrafiken.gtfs-static-api-key}") String apiKey,
+    @Value("${samtrafiken.gtfs-static-url}") String gtfsUrl
   ) {
     this.gtfsDownloadDao = gtfsDownloadDao;
     this.pushoverProvider = pushoverProvider;

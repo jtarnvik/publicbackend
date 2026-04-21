@@ -45,8 +45,8 @@ public class GtfsPocController {
   private final String gtfsUrl;
 
   public GtfsPocController(
-    @Value("${samtrafiken.api-key}") String apiKey,
-    @Value("${samtrafiken.gtfs-url}") String gtfsUrl
+    @Value("${samtrafiken.gtfs-static-api-key}") String apiKey,
+    @Value("${samtrafiken.gtfs-static-url}") String gtfsUrl
   ) {
     this.apiKey = apiKey;
     this.gtfsUrl = gtfsUrl;
