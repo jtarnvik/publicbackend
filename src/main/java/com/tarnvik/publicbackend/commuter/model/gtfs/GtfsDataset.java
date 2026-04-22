@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -39,5 +40,17 @@ public class GtfsDataset {
     this.stopsById = Collections.unmodifiableMap(stopsById);
     this.stopTimesByTripId = Collections.unmodifiableMap(stopTimesByTripId);
     this.activeServiceIdsByDate = Collections.unmodifiableMap(activeServiceIdsByDate);
+  }
+
+  public boolean isEmpty() {
+    return routesById.isEmpty();
+  }
+
+  public Optional<GtfsRoute> findRouteByTripId(String tripId) {
+    GtfsTrip trip = tripsById.get(tripId);
+    if (trip == null) {
+      return Optional.empty();
+    }
+    return Optional.ofNullable(routesById.get(trip.getRouteId()));
   }
 }

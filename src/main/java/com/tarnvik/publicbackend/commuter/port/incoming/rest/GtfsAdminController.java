@@ -6,6 +6,7 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadStatus
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsStatusResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.mapper.GtfsDownloadLogMapper;
 import com.tarnvik.publicbackend.commuter.service.GtfsPipelineService;
+import com.tarnvik.publicbackend.commuter.service.GtfsRealtimeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,7 @@ public class GtfsAdminController {
   private final GtfsDownloadDao gtfsDownloadDao;
   private final GtfsPipelineService gtfsPipelineService;
   private final GtfsDownloadLogMapper gtfsDownloadLogMapper;
+  private final GtfsRealtimeService gtfsRealtimeService;
 
   @GetMapping("/api/admin/gtfs/status")
   @PreAuthorize("hasRole('ADMIN')")
@@ -38,6 +40,13 @@ public class GtfsAdminController {
   @PreAuthorize("hasRole('ADMIN')")
   public ResponseEntity<Void> runPipeline() {
     gtfsPipelineService.runPipeline();
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/api/admin/gtfs/realtime-poc")
+  @PreAuthorize("hasRole('ADMIN')")
+  public ResponseEntity<Void> realtimePoc() {
+    gtfsRealtimeService.poc();
     return ResponseEntity.ok().build();
   }
 
