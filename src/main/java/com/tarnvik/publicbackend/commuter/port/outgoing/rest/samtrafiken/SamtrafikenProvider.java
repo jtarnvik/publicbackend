@@ -60,8 +60,8 @@ public class SamtrafikenProvider {
   private GtfsVehiclePosition toVehiclePosition(VehiclePosition vp) {
     return GtfsVehiclePosition.builder()
       .tripId(vp.getTrip().getTripId())
-      .latitude(vp.getPosition().getLatitude())
-      .longitude(vp.getPosition().getLongitude())
+      .lat(vp.getPosition().getLatitude())
+      .lng(vp.getPosition().getLongitude())
       .currentStatus(vp.getCurrentStatus())
       .timestamp(vp.getTimestamp())
       .bearing(vp.getPosition().getBearing())

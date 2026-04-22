@@ -13,6 +13,7 @@ import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRoute;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStop;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTime;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTrip;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -56,9 +57,10 @@ public class GtfsAccessService {
       routesById.put(route.getRouteId(), route);
     }
 
-    Map<String, GtfsTrip> tripsById = new HashMap<>();
+    Map<String, GtfsTripInfo> tripInfoById = new HashMap<>();
     for (GtfsTrip trip : gtfsTripRepository.findAll()) {
-      tripsById.put(trip.getTripId(), trip);
+      GtfsRoute route = routesById.get(trip.getRouteId());
+      tripInfoById.put(trip.getTripId(), new GtfsTripInfo(trip.getTripId(), trip.getDirectionId(), trip.getServiceId(), route));
     }
 
     Map<String, GtfsStop> stopsById = new HashMap<>();
@@ -83,12 +85,12 @@ public class GtfsAccessService {
         .add(calendarDate.getId().getServiceId());
     }
 
-    GtfsDataset newDataset = new GtfsDataset(monitoredLines, routesById, tripsById, stopsById, stopTimesByTripId, activeServiceIdsByDate);
+    GtfsDataset newDataset = new GtfsDataset(monitoredLines, routesById, tripInfoById, stopsById, stopTimesByTripId, activeServiceIdsByDate);
     dataset.set(newDataset);
 
     int stopTimeCount = stopTimesByTripId.values().stream().mapToInt(List::size).sum();
     log.info("GTFS dataset loaded: {} monitored lines, {} routes, {} trips, {} stops, {} stop times, {} calendar date entries",
-      monitoredLines.size(), routesById.size(), tripsById.size(), stopsById.size(), stopTimeCount, activeServiceIdsByDate.size());
+      monitoredLines.size(), routesById.size(), tripInfoById.size(), stopsById.size(), stopTimeCount, activeServiceIdsByDate.size());
   }
 
   public GtfsDataset getDataset() {

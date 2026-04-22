@@ -11,7 +11,7 @@ import lombok.Setter;
 @Table(name = "gtfs_stop")
 @Getter
 @Setter
-public class GtfsStop {
+public class GtfsStop implements GeoPosition {
   @Id
   @Column(name = "stop_id", nullable = false, length = 50)
   private String stopId;
@@ -30,4 +30,14 @@ public class GtfsStop {
 
   @Column(name = "parent_station", length = 50)
   private String parentStation;
+
+  @Override
+  public double getLat() {
+    return stopLat;
+  }
+
+  @Override
+  public double getLng() {
+    return stopLon;
+  }
 }
