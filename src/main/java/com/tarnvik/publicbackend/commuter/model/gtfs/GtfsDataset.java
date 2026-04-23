@@ -1,6 +1,8 @@
 package com.tarnvik.publicbackend.commuter.model.gtfs;
 
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStop;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStopTime;
 
 import java.time.LocalDate;
 import java.util.Collections;

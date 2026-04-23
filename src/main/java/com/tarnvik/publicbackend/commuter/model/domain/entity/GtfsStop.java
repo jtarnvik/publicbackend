@@ -1,5 +1,6 @@
-package com.tarnvik.publicbackend.commuter.model.gtfs;
+package com.tarnvik.publicbackend.commuter.model.domain.entity;
 
+import com.tarnvik.publicbackend.commuter.model.gtfs.GeoPosition;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

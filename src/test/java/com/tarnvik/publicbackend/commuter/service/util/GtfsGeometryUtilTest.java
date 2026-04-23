@@ -1,6 +1,6 @@
 package com.tarnvik.publicbackend.commuter.service.util;
 
-import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStop;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStop;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil.VehicleLocation;
 import org.junit.jupiter.api.Test;
 

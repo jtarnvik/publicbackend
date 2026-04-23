@@ -2,8 +2,8 @@ package com.tarnvik.publicbackend.commuter.service;
 
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsDataset;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRouteInfo;
-import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStop;
-import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTime;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStop;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStopTime;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsVehiclePosition;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.samtrafiken.SamtrafikenProvider;

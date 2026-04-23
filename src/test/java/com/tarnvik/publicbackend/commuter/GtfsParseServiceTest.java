@@ -8,9 +8,9 @@ import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsRouteRepos
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopTimeRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsTripRepository;
-import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsCalendarDateId;
-import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTime;
-import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeId;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsCalendarDateId;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStopTime;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStopTimeId;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.claude.ClaudeProvider;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.pushover.PushoverProvider;
 import com.tarnvik.publicbackend.commuter.service.GtfsParseService;
