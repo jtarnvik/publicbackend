@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="032-1" author="jesper">
+        <addColumn tableName="gtfs_monitored_line">
+            <column name="route_group" type="INT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <update tableName="gtfs_monitored_line">
+            <column name="route_group" valueNumeric="1"/>
+            <where>transport_mode = 'TRAIN'</where>
+        </update>
+
+        <update tableName="gtfs_monitored_line">
+            <column name="route_group" valueNumeric="1"/>
+            <where>transport_mode = 'METRO'</where>
+        </update>
+
+        <update tableName="gtfs_monitored_line">
+            <column name="route_group" valueNumeric="1"/>
+            <where>transport_mode = 'BUS' AND route_short_name = '112'</where>
+        </update>
+
+        <update tableName="gtfs_monitored_line">
+            <column name="route_group" valueNumeric="2"/>
+            <where>transport_mode = 'BUS' AND route_short_name = '117'</where>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>

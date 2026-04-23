@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <changeSet id="033-1" author="jesper">
+        <renameTable oldTableName="gtfs_monitored_line" newTableName="gtfs_monitored_route"/>
+
+        <update tableName="id_gen">
+            <column name="gen_name" value="gtfs_monitored_route_gen"/>
+            <where>gen_name = 'gtfs_monitored_line_gen'</where>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>

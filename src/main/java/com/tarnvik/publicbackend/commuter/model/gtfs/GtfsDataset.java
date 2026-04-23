@@ -1,6 +1,6 @@
 package com.tarnvik.publicbackend.commuter.model.gtfs;
 
-import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredLine;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute;
 
 import java.time.LocalDate;
 import java.util.Collections;
@@ -19,7 +19,7 @@ import java.util.Set;
  * (C1 and later) reveals its access patterns.
  */
 public class GtfsDataset {
-  private final List<GtfsMonitoredLine> monitoredLines;
+  private final List<GtfsMonitoredRoute> monitoredRoutes;
   private final Map<String, GtfsRoute> routesById;                   // key: route_id
   private final Map<String, GtfsTripInfo> tripInfoById;              // key: trip_id
   private final Map<String, GtfsStop> stopsById;                     // key: stop_id
@@ -27,14 +27,14 @@ public class GtfsDataset {
   private final Map<LocalDate, Set<String>> activeServiceIdsByDate;  // key: service date, value: active service_ids
 
   public GtfsDataset(
-    List<GtfsMonitoredLine> monitoredLines,
+    List<GtfsMonitoredRoute> monitoredRoutes,
     Map<String, GtfsRoute> routesById,
     Map<String, GtfsTripInfo> tripInfoById,
     Map<String, GtfsStop> stopsById,
     Map<String, List<GtfsStopTime>> stopTimesByTripId,
     Map<LocalDate, Set<String>> activeServiceIdsByDate
   ) {
-    this.monitoredLines = Collections.unmodifiableList(monitoredLines);
+    this.monitoredRoutes = Collections.unmodifiableList(monitoredRoutes);
     this.routesById = Collections.unmodifiableMap(routesById);
     this.tripInfoById = Collections.unmodifiableMap(tripInfoById);
     this.stopsById = Collections.unmodifiableMap(stopsById);

@@ -1,8 +1,8 @@
 package com.tarnvik.publicbackend.commuter.service;
 
-import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredLine;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsCalendarDateRepository;
-import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsMonitoredLineRepository;
+import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsMonitoredRouteRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsRouteRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopTimeRepository;
@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @RequiredArgsConstructor
 @Slf4j
 public class GtfsAccessService {
-  private final GtfsMonitoredLineRepository gtfsMonitoredLineRepository;
+  private final GtfsMonitoredRouteRepository gtfsMonitoredRouteRepository;
   private final GtfsRouteRepository gtfsRouteRepository;
   private final GtfsTripRepository gtfsTripRepository;
   private final GtfsStopRepository gtfsStopRepository;
@@ -50,7 +50,7 @@ public class GtfsAccessService {
   }
 
   public void rebuildDataset() {
-    List<GtfsMonitoredLine> monitoredLines = gtfsMonitoredLineRepository.findAll();
+    List<GtfsMonitoredRoute> monitoredRoutes = gtfsMonitoredRouteRepository.findAll();
 
     Map<String, GtfsRoute> routesById = new HashMap<>();
     for (GtfsRoute route : gtfsRouteRepository.findAll()) {
@@ -85,12 +85,12 @@ public class GtfsAccessService {
         .add(calendarDate.getId().getServiceId());
     }
 
-    GtfsDataset newDataset = new GtfsDataset(monitoredLines, routesById, tripInfoById, stopsById, stopTimesByTripId, activeServiceIdsByDate);
+    GtfsDataset newDataset = new GtfsDataset(monitoredRoutes, routesById, tripInfoById, stopsById, stopTimesByTripId, activeServiceIdsByDate);
     dataset.set(newDataset);
 
     int stopTimeCount = stopTimesByTripId.values().stream().mapToInt(List::size).sum();
-    log.info("GTFS dataset loaded: {} monitored lines, {} routes, {} trips, {} stops, {} stop times, {} calendar date entries",
-      monitoredLines.size(), routesById.size(), tripInfoById.size(), stopsById.size(), stopTimeCount, activeServiceIdsByDate.size());
+    log.info("GTFS dataset loaded: {} monitored routes, {} routes, {} trips, {} stops, {} stop times, {} calendar date entries",
+      monitoredRoutes.size(), routesById.size(), tripInfoById.size(), stopsById.size(), stopTimeCount, activeServiceIdsByDate.size());
   }
 
   public GtfsDataset getDataset() {

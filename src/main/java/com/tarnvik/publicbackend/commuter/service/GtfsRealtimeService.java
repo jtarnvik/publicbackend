@@ -43,18 +43,18 @@ public class GtfsRealtimeService {
       List<GtfsVehiclePosition> gtfsVehiclePositions = samtrafikenProvider.fetchVehiclePositions();
       log.info("Total number of vehicles {}", gtfsVehiclePositions.size());
 
-      List<GtfsVehiclePosition> monitoredLineVP = new ArrayList<>();
+      List<GtfsVehiclePosition> monitoredRouteVP = new ArrayList<>();
 
       gtfsVehiclePositions.forEach(vp -> {
         Optional<GtfsTripInfo> tripByTripId = dataset.findTripByTripId(vp.getTripId());
         if (tripByTripId.isPresent()) {
-          monitoredLineVP.add(vp);
+          monitoredRouteVP.add(vp);
         }
       });
-      log.info("Total number of monitored line VP {}", monitoredLineVP.size());
+      log.info("Total number of monitored line VP {}", monitoredRouteVP.size());
 
       Map<GtfsRoute, List<GtfsVehiclePosition>> vpByRoute = new HashMap<>();
-      monitoredLineVP.forEach(vp -> {
+      monitoredRouteVP.forEach(vp -> {
         GtfsTripInfo gtfsTripInfo = dataset.findTripByTripId(vp.getTripId()).orElseThrow();
         vpByRoute.computeIfAbsent(gtfsTripInfo.getRoute(), route -> new ArrayList<>()).add(vp);
       });

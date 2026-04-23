@@ -4,8 +4,8 @@ import com.tarnvik.publicbackend.commuter.exception.GtfsDownloadException;
 import com.tarnvik.publicbackend.commuter.model.domain.dao.GtfsDownloadDao;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadLog;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadStatus;
-import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredLine;
-import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsMonitoredLineRepository;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute;
+import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsMonitoredRouteRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsCalendarDateRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsRouteRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopRepository;
@@ -55,7 +55,7 @@ import java.util.regex.Pattern;
  * <h2>Why filter?</h2>
  * The full regional feed covers all operators and thousands of lines. We only care about a small
  * set of monitored lines (pendeltåg 43/44, bus 117/112, metro 17/18/19), configured in the
- * {@code gtfs_monitored_line} table. The full {@code stop_times.txt} alone is ~140 MB — loading
+ * {@code gtfs_monitored_route} table. The full {@code stop_times.txt} alone is ~140 MB — loading
  * and persisting the entire feed would be wasteful. Instead, each parse step filters aggressively
  * and only retains data that belongs to the monitored lines.
  *
@@ -140,7 +140,7 @@ public class GtfsParseService {
   private static final String SL_AGENCY_NAME = "Storstockholms Lokaltrafik";
 
   private final GtfsDownloadDao gtfsDownloadDao;
-  private final GtfsMonitoredLineRepository gtfsMonitoredLineRepository;
+  private final GtfsMonitoredRouteRepository gtfsMonitoredRouteRepository;
   private final GtfsRouteRepository gtfsRouteRepository;
   private final GtfsTripRepository gtfsTripRepository;
   private final GtfsStopTimeRepository gtfsStopTimeRepository;
@@ -169,8 +169,8 @@ public class GtfsParseService {
 
     try {
       String agencyId = parseAgencyId();
-      List<GtfsMonitoredLine> monitoredLines = gtfsMonitoredLineRepository.findAll();
-      Set<String> routeIds = parseRoutes(agencyId, monitoredLines);
+      List<GtfsMonitoredRoute> monitoredRoutes = gtfsMonitoredRouteRepository.findAll();
+      Set<String> routeIds = parseRoutes(agencyId, monitoredRoutes);
       TripParseResult tripResult = parseTrips(routeIds);
       Set<String> stopIds = parseStopTimes(tripResult.tripIds());
       int stopCount = parseStops(stopIds);
@@ -206,7 +206,7 @@ public class GtfsParseService {
     throw new GtfsDownloadException("No agency matching '" + SL_AGENCY_NAME + "' found in agency.txt", null);
   }
 
-  private Set<String> parseRoutes(String agencyId, List<GtfsMonitoredLine> monitoredLines) throws IOException {
+  private Set<String> parseRoutes(String agencyId, List<GtfsMonitoredRoute> monitoredRoutes) throws IOException {
     log.info("Parsing routes.txt");
     Path routesFile = unzipDir.resolve("routes.txt");
     List<GtfsRoute> retained = new ArrayList<>();
@@ -233,7 +233,7 @@ public class GtfsParseService {
           log.warn("Skipping route with non-numeric route_type: {}", routeTypeStr);
           continue;
         }
-        if (!matchesMonitoredLine(routeShortName, routeType, monitoredLines)) {
+        if (!matchesMonitoredRoute(routeShortName, routeType, monitoredRoutes)) {
           continue;
         }
         GtfsRoute route = new GtfsRoute();
@@ -462,8 +462,8 @@ public class GtfsParseService {
     return retained.size();
   }
 
-  private boolean matchesMonitoredLine(String routeShortName, int routeType, List<GtfsMonitoredLine> monitoredLines) {
-    for (GtfsMonitoredLine monitored : monitoredLines) {
+  private boolean matchesMonitoredRoute(String routeShortName, int routeType, List<GtfsMonitoredRoute> monitoredRoutes) {
+    for (GtfsMonitoredRoute monitored : monitoredRoutes) {
       if (monitored.getTransportMode().getGtfsRouteType() != routeType) {
         continue;
       }

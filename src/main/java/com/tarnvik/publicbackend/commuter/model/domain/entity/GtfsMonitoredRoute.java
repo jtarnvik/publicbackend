@@ -17,13 +17,13 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "gtfs_monitored_line")
+@Table(name = "gtfs_monitored_route")
 @Getter
 @Setter
-public class GtfsMonitoredLine {
-  @TableGenerator(name = "id_generator_gtfs_monitored_line", table = "id_gen", pkColumnName = "gen_name",
-    valueColumnName = "gen_value", pkColumnValue = "gtfs_monitored_line_gen", initialValue = 10000, allocationSize = 1)
-  @GeneratedValue(strategy = GenerationType.TABLE, generator = "id_generator_gtfs_monitored_line")
+public class GtfsMonitoredRoute {
+  @TableGenerator(name = "id_generator_gtfs_monitored_route", table = "id_gen", pkColumnName = "gen_name",
+    valueColumnName = "gen_value", pkColumnValue = "gtfs_monitored_route_gen", initialValue = 10000, allocationSize = 1)
+  @GeneratedValue(strategy = GenerationType.TABLE, generator = "id_generator_gtfs_monitored_route")
   @Column(name = "id")
   @Id
   private Long id;
@@ -34,6 +34,9 @@ public class GtfsMonitoredLine {
   @Enumerated(EnumType.STRING)
   @Column(name = "transport_mode", nullable = false, length = 20)
   private TransportMode transportMode;
+
+  @Column(name = "route_group", nullable = false)
+  private int routeGroup;
 
   @CreationTimestamp
   @Column(name = "create_date", updatable = false)

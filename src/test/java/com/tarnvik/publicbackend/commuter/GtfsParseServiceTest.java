@@ -77,7 +77,7 @@ class GtfsParseServiceTest {
   }
 
   @Test
-  void parseIfReady_filtersToMonitoredLinesOnly() {
+  void parseIfReady_filtersToMonitoredRoutesOnly() {
     gtfsParseService.parseIfReady();
 
     // Routes: 3 retained (43, 43X, 117); route-999 excluded (not monitored); route-other excluded (wrong agency)

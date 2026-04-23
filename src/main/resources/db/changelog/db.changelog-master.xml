@@ -36,5 +36,7 @@
     <include file="db/changelog/changes/029-create-gtfs-stop-time-table.xml"/>
     <include file="db/changelog/changes/030-create-gtfs-stop-table.xml"/>
     <include file="db/changelog/changes/031-create-gtfs-calendar-date-table.xml"/>
+    <include file="db/changelog/changes/032-add-route-group-to-gtfs-monitored-line.xml"/>
+    <include file="db/changelog/changes/033-rename-gtfs-monitored-line-to-route.xml"/>
 
 </databaseChangeLog>
