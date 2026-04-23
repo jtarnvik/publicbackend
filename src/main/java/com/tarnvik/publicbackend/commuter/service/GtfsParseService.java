@@ -19,6 +19,7 @@ import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTime;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeId;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTrip;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.pushover.PushoverProvider;
+import com.tarnvik.publicbackend.commuter.service.util.GtfsNameUtil;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * Parses the static GTFS feed for Storstockholms Lokaltrafik (SL) and persists a filtered subset
@@ -467,8 +467,7 @@ public class GtfsParseService {
       if (monitored.getTransportMode().getGtfsRouteType() != routeType) {
         continue;
       }
-      String base = Pattern.quote(monitored.getRouteShortName());
-      if (routeShortName.matches("^" + base + "[A-Za-z]?$")) {
+      if (GtfsNameUtil.matchesMonitoredRouteName(routeShortName, monitored)) {
         return true;
       }
     }

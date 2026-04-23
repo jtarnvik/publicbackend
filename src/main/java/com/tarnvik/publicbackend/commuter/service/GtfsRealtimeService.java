@@ -1,7 +1,7 @@
 package com.tarnvik.publicbackend.commuter.service;
 
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsDataset;
-import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRoute;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRouteInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStop;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTime;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
@@ -53,17 +53,17 @@ public class GtfsRealtimeService {
       });
       log.info("Total number of monitored line VP {}", monitoredRouteVP.size());
 
-      Map<GtfsRoute, List<GtfsVehiclePosition>> vpByRoute = new HashMap<>();
+      Map<GtfsRouteInfo, List<GtfsVehiclePosition>> vpByRoute = new HashMap<>();
       monitoredRouteVP.forEach(vp -> {
         GtfsTripInfo gtfsTripInfo = dataset.findTripByTripId(vp.getTripId()).orElseThrow();
-        vpByRoute.computeIfAbsent(gtfsTripInfo.getRoute(), route -> new ArrayList<>()).add(vp);
+        vpByRoute.computeIfAbsent(gtfsTripInfo.getRouteInfo(), routeInfo -> new ArrayList<>()).add(vp);
       });
 
       vpByRoute.entrySet().stream()
-        .sorted(Map.Entry.comparingByKey(java.util.Comparator.comparing(GtfsRoute::getRouteShortName)))
+        .sorted(Map.Entry.comparingByKey(java.util.Comparator.comparing(GtfsRouteInfo::getRouteShortName)))
         .forEach(e -> log.info("  line {} -> {} vehicles", e.getKey().getRouteShortName(), e.getValue().size()));
 
-      Optional<GtfsRoute> rt117Opt = vpByRoute.keySet().stream()
+      Optional<GtfsRouteInfo> rt117Opt = vpByRoute.keySet().stream()
         .filter(k -> k.getRouteShortName().equals("117"))
         .findFirst();
       rt117Opt.ifPresent(rt117 -> {
@@ -73,7 +73,7 @@ public class GtfsRealtimeService {
           GtfsTripInfo gtfsTripInfo = dataset.findTripByTripId(vp.getTripId()).orElseThrow();
 
           log.info("117 Vehicle: routeid: {}, tripid: {}, serviceId: {}, direction: {}",
-            gtfsTripInfo.getRoute().getRouteId(),
+            gtfsTripInfo.getRouteInfo().getRouteId(),
             gtfsTripInfo.getTripId(),
             gtfsTripInfo.getServiceId(),
             gtfsTripInfo.getDirectionId());
@@ -84,7 +84,7 @@ public class GtfsRealtimeService {
           buf.append(gtfsStopTimes.get(0).getStopHeadsign());
           buf.append(": ");
           String chain = gtfsStopTimes.stream()
-            .map(st -> dataset.getStopByStopId(st.getStopId()).orElseThrow().getStopName())
+            .map(st -> dataset.getStopByStopId(st.getStopId()).orElseThrow().getStopName() + "/" + st.getStopId() + "/" + dataset.getStopByStopId(st.getStopId()).orElseThrow().getParentStation())
             .collect(Collectors.joining(" -> "));
           buf.append(chain);
           log.info(buf.toString());

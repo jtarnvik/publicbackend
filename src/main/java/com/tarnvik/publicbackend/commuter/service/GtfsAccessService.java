@@ -10,10 +10,12 @@ import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsTripReposi
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsCalendarDate;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsDataset;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRoute;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRouteInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStop;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTime;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTrip;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
+import com.tarnvik.publicbackend.commuter.service.util.GtfsNameUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -52,15 +54,18 @@ public class GtfsAccessService {
   public void rebuildDataset() {
     List<GtfsMonitoredRoute> monitoredRoutes = gtfsMonitoredRouteRepository.findAll();
 
-    Map<String, GtfsRoute> routesById = new HashMap<>();
+    Map<String, GtfsRouteInfo> routeInfoById = new HashMap<>();
     for (GtfsRoute route : gtfsRouteRepository.findAll()) {
-      routesById.put(route.getRouteId(), route);
+      GtfsMonitoredRoute monitoredRoute = GtfsNameUtil.findMatchingMonitoredRoute(route.getRouteShortName(), monitoredRoutes)
+        .orElseThrow(() -> new IllegalStateException("No monitored route matches DB route: " + route.getRouteShortName()));
+      routeInfoById.put(route.getRouteId(),
+        new GtfsRouteInfo(route.getRouteId(), route.getRouteShortName(), route.getRouteLongName(), route.getRouteType(), monitoredRoute));
     }
 
     Map<String, GtfsTripInfo> tripInfoById = new HashMap<>();
     for (GtfsTrip trip : gtfsTripRepository.findAll()) {
-      GtfsRoute route = routesById.get(trip.getRouteId());
-      tripInfoById.put(trip.getTripId(), new GtfsTripInfo(trip.getTripId(), trip.getDirectionId(), trip.getServiceId(), route));
+      GtfsRouteInfo routeInfo = routeInfoById.get(trip.getRouteId());
+      tripInfoById.put(trip.getTripId(), new GtfsTripInfo(trip.getTripId(), trip.getDirectionId(), trip.getServiceId(), routeInfo));
     }
 
     Map<String, GtfsStop> stopsById = new HashMap<>();
@@ -85,12 +90,12 @@ public class GtfsAccessService {
         .add(calendarDate.getId().getServiceId());
     }
 
-    GtfsDataset newDataset = new GtfsDataset(monitoredRoutes, routesById, tripInfoById, stopsById, stopTimesByTripId, activeServiceIdsByDate);
+    GtfsDataset newDataset = new GtfsDataset(monitoredRoutes, routeInfoById, tripInfoById, stopsById, stopTimesByTripId, activeServiceIdsByDate);
     dataset.set(newDataset);
 
     int stopTimeCount = stopTimesByTripId.values().stream().mapToInt(List::size).sum();
     log.info("GTFS dataset loaded: {} monitored routes, {} routes, {} trips, {} stops, {} stop times, {} calendar date entries",
-      monitoredRoutes.size(), routesById.size(), tripInfoById.size(), stopsById.size(), stopTimeCount, activeServiceIdsByDate.size());
+      monitoredRoutes.size(), routeInfoById.size(), tripInfoById.size(), stopsById.size(), stopTimeCount, activeServiceIdsByDate.size());
   }
 
   public GtfsDataset getDataset() {

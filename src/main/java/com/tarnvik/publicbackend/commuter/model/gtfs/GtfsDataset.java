@@ -20,22 +20,22 @@ import java.util.Set;
  */
 public class GtfsDataset {
   private final List<GtfsMonitoredRoute> monitoredRoutes;
-  private final Map<String, GtfsRoute> routesById;                   // key: route_id
-  private final Map<String, GtfsTripInfo> tripInfoById;              // key: trip_id
-  private final Map<String, GtfsStop> stopsById;                     // key: stop_id
-  private final Map<String, List<GtfsStopTime>> stopTimesByTripId;   // key: trip_id, list sorted by stop_sequence
-  private final Map<LocalDate, Set<String>> activeServiceIdsByDate;  // key: service date, value: active service_ids
+  private final Map<String, GtfsRouteInfo> routeInfoById;             // key: route_id
+  private final Map<String, GtfsTripInfo> tripInfoById;               // key: trip_id
+  private final Map<String, GtfsStop> stopsById;                      // key: stop_id
+  private final Map<String, List<GtfsStopTime>> stopTimesByTripId;    // key: trip_id, list sorted by stop_sequence
+  private final Map<LocalDate, Set<String>> activeServiceIdsByDate;   // key: service date, value: active service_ids
 
   public GtfsDataset(
     List<GtfsMonitoredRoute> monitoredRoutes,
-    Map<String, GtfsRoute> routesById,
+    Map<String, GtfsRouteInfo> routeInfoById,
     Map<String, GtfsTripInfo> tripInfoById,
     Map<String, GtfsStop> stopsById,
     Map<String, List<GtfsStopTime>> stopTimesByTripId,
     Map<LocalDate, Set<String>> activeServiceIdsByDate
   ) {
     this.monitoredRoutes = Collections.unmodifiableList(monitoredRoutes);
-    this.routesById = Collections.unmodifiableMap(routesById);
+    this.routeInfoById = Collections.unmodifiableMap(routeInfoById);
     this.tripInfoById = Collections.unmodifiableMap(tripInfoById);
     this.stopsById = Collections.unmodifiableMap(stopsById);
     this.stopTimesByTripId = Collections.unmodifiableMap(stopTimesByTripId);
@@ -43,7 +43,7 @@ public class GtfsDataset {
   }
 
   public boolean isEmpty() {
-    return routesById.isEmpty();
+    return routeInfoById.isEmpty();
   }
 
   public Optional<GtfsTripInfo> findTripByTripId(String tripId) {
