@@ -103,10 +103,10 @@ class GtfsParseServiceTest {
     assertThat(lateStopTime).isPresent();
     assertThat(lateStopTime.get().getArrivalTime()).isEqualTo("25:30:00");
 
-    // Stops: 5 retained; stop-F excluded (not referenced by retained trips); parent-1 excluded (same reason)
-    assertThat(gtfsStopRepository.count()).isEqualTo(5);
+    // Stops: 5 platform stops + 1 parent station retained; stop-F excluded (not referenced by retained trips)
+    assertThat(gtfsStopRepository.count()).isEqualTo(6);
     assertThat(gtfsStopRepository.findById("stop-F")).isEmpty();
-    assertThat(gtfsStopRepository.findById("parent-1")).isEmpty();
+    assertThat(gtfsStopRepository.findById("parent-1")).isPresent();
 
     // Calendar dates: 4 retained; exception_type=2 excluded; non-monitored service IDs excluded
     assertThat(gtfsCalendarDateRepository.count()).isEqualTo(4);

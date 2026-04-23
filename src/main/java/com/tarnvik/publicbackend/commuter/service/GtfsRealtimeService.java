@@ -84,7 +84,13 @@ public class GtfsRealtimeService {
           buf.append(gtfsStopTimes.get(0).getStopHeadsign());
           buf.append(": ");
           String chain = gtfsStopTimes.stream()
-            .map(st -> dataset.getStopByStopId(st.getStopId()).orElseThrow().getStopName() + "/" + st.getStopId() + "/" + dataset.getStopByStopId(st.getStopId()).orElseThrow().getParentStation())
+            .map(st -> {
+              String stopId = st.getStopId();
+              GtfsStop stop = dataset.getStopByStopId(stopId).orElseThrow();
+              String parentStation = stop.getParentStation();
+              GtfsStop parentStop = dataset.getStopByStopId(parentStation).orElseThrow();
+              return stop.getStopName() + "/" + stopId + "/" + parentStation + "/" + parentStop.getStopName();
+            })
             .collect(Collectors.joining(" -> "));
           buf.append(chain);
           log.info(buf.toString());

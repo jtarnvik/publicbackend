@@ -381,6 +381,7 @@ public class GtfsParseService {
     log.info("Parsing stops.txt");
     Path stopsFile = unzipDir.resolve("stops.txt");
     List<GtfsStop> retained = new ArrayList<>();
+    Set<String> parentStationIds = new HashSet<>();
 
     try (BufferedReader reader = Files.newBufferedReader(stopsFile)) {
       String headerLine = reader.readLine();
@@ -407,6 +408,9 @@ public class GtfsParseService {
           stop.setLocationType(locationTypeStr.isBlank() ? null : Integer.parseInt(locationTypeStr));
           String parentStation = getField(fields, headers, "parent_station");
           stop.setParentStation(parentStation.isBlank() ? null : parentStation);
+          if (stop.getParentStation() != null) {
+            parentStationIds.add(stop.getParentStation());
+          }
           retained.add(stop);
         } catch (NumberFormatException e) {
           log.warn("Skipping stop {} with unparseable coordinates: lat={}, lon={}", stopId, latStr, lonStr);
@@ -414,9 +418,39 @@ public class GtfsParseService {
       }
     }
 
+    log.info("Found {} unique parent station IDs — starting second pass", parentStationIds.size());
+    try (BufferedReader reader = Files.newBufferedReader(stopsFile)) {
+      String headerLine = reader.readLine();
+      Map<String, Integer> headers = indexHeaders(headerLine);
+      String line;
+      while ((line = reader.readLine()) != null) {
+        String[] fields = splitCsvLine(line);
+        String stopId = getField(fields, headers, "stop_id");
+        if (!parentStationIds.contains(stopId)) {
+          continue;
+        }
+        String latStr = getField(fields, headers, "stop_lat");
+        String lonStr = getField(fields, headers, "stop_lon");
+        try {
+          GtfsStop stop = new GtfsStop();
+          stop.setStopId(stopId);
+          stop.setStopName(getField(fields, headers, "stop_name"));
+          stop.setStopLat(Double.parseDouble(latStr));
+          stop.setStopLon(Double.parseDouble(lonStr));
+          String locationTypeStr = getField(fields, headers, "location_type");
+          stop.setLocationType(locationTypeStr.isBlank() ? null : Integer.parseInt(locationTypeStr));
+          stop.setParentStation(null);
+          retained.add(stop);
+        } catch (NumberFormatException e) {
+          log.warn("Skipping parent station {} with unparseable coordinates: lat={}, lon={}", stopId, latStr, lonStr);
+        }
+      }
+    }
+
     gtfsStopRepository.deleteAllInBatch();
     gtfsStopRepository.saveAll(retained);
-    log.info("Retained {} stops from stops.txt", retained.size());
+    log.info("Retained {} stops from stops.txt ({} platforms, {} parent stations)",
+      retained.size(), stopIds.size(), parentStationIds.size());
     return retained.size();
   }
 
