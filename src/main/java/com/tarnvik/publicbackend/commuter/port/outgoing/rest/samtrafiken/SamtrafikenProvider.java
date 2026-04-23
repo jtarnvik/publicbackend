@@ -12,6 +12,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
@@ -19,15 +22,40 @@ import java.util.zip.GZIPInputStream;
 @Component
 @Slf4j
 public class SamtrafikenProvider {
+  private final String staticUrl;
+  private final String staticApiKey;
   private final String realtimeUrl;
   private final String realtimeApiKey;
 
   public SamtrafikenProvider(
+    @Value("${samtrafiken.gtfs-static-url}") String staticUrl,
+    @Value("${samtrafiken.gtfs-static-api-key}") String staticApiKey,
     @Value("${samtrafiken.gtfs-realtime-url}") String realtimeUrl,
     @Value("${samtrafiken.gtfs-realtime-api-key}") String realtimeApiKey
   ) {
+    this.staticUrl = staticUrl;
+    this.staticApiKey = staticApiKey;
     this.realtimeUrl = realtimeUrl;
     this.realtimeApiKey = realtimeApiKey;
+  }
+
+  public void downloadGtfsZip(Path targetPath) throws IOException {
+    String url = staticUrl + "?key=" + staticApiKey;
+    log.info("Downloading GTFS zip from {}", staticUrl);
+    long start = System.currentTimeMillis();
+
+    HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
+    connection.setRequestProperty("Accept-Encoding", "gzip");
+    try (InputStream raw = connection.getInputStream()) {
+      InputStream input = "gzip".equalsIgnoreCase(connection.getContentEncoding())
+        ? new GZIPInputStream(raw)
+        : raw;
+      Files.copy(input, targetPath, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    long duration = System.currentTimeMillis() - start;
+    long size = Files.size(targetPath);
+    log.info("GTFS zip downloaded: size={} bytes, duration={}ms", size, duration);
   }
 
   public List<GtfsVehiclePosition> fetchVehiclePositions() throws IOException {

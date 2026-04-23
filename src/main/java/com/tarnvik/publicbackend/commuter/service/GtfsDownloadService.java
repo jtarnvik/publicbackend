@@ -5,23 +5,19 @@ import com.tarnvik.publicbackend.commuter.model.domain.dao.GtfsDownloadDao;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadLog;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadStatus;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.pushover.PushoverProvider;
+import com.tarnvik.publicbackend.commuter.port.outgoing.rest.samtrafiken.SamtrafikenProvider;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.Optional;
-import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -35,22 +31,19 @@ public class GtfsDownloadService {
 
   private final GtfsDownloadDao gtfsDownloadDao;
   private final PushoverProvider pushoverProvider;
+  private final SamtrafikenProvider samtrafikenProvider;
   private final Environment environment;
-  private final String apiKey;
-  private final String gtfsUrl;
 
   public GtfsDownloadService(
     GtfsDownloadDao gtfsDownloadDao,
     PushoverProvider pushoverProvider,
-    Environment environment,
-    @Value("${samtrafiken.gtfs-static-api-key}") String apiKey,
-    @Value("${samtrafiken.gtfs-static-url}") String gtfsUrl
+    SamtrafikenProvider samtrafikenProvider,
+    Environment environment
   ) {
     this.gtfsDownloadDao = gtfsDownloadDao;
     this.pushoverProvider = pushoverProvider;
+    this.samtrafikenProvider = samtrafikenProvider;
     this.environment = environment;
-    this.apiKey = apiKey;
-    this.gtfsUrl = gtfsUrl;
   }
 
   public void downloadIfNeeded() {
@@ -75,24 +68,7 @@ public class GtfsDownloadService {
     try {
       deleteDir(WORK_DIR);
       Files.createDirectories(WORK_DIR);
-
-      String url = gtfsUrl + "?key=" + apiKey;
-      log.info("Downloading GTFS zip from {}", gtfsUrl);
-      long start = System.currentTimeMillis();
-
-      HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
-      connection.setRequestProperty("Accept-Encoding", "gzip");
-      try (InputStream raw = connection.getInputStream()) {
-        InputStream input = "gzip".equalsIgnoreCase(connection.getContentEncoding())
-          ? new GZIPInputStream(raw)
-          : raw;
-        Files.copy(input, ZIP_PATH, StandardCopyOption.REPLACE_EXISTING);
-      }
-
-      long duration = System.currentTimeMillis() - start;
-      long size = Files.size(ZIP_PATH);
-      log.info("GTFS zip downloaded: size={} bytes, duration={}ms", size, duration);
-
+      samtrafikenProvider.downloadGtfsZip(ZIP_PATH);
       gtfsDownloadDao.markDownloadDone(entry);
     } catch (Exception e) {
       throw handlePipelineFailure(entry, "download", e);
