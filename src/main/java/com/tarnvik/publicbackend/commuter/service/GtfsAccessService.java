@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -53,6 +54,7 @@ public class GtfsAccessService {
   public void onApplicationReady() {
     log.info("Application ready — loading GTFS dataset from database");
     rebuildDataset();
+    validateRouteGroupConsistency(dataset.get().getMonitoredRoutes());
   }
 
   public void rebuildDataset() {
@@ -115,15 +117,65 @@ public class GtfsAccessService {
       .entrySet().stream()
       .map(entry -> {
         GroupKey key = entry.getKey();
-        String displayName = entry.getValue().stream()
+        List<GtfsMonitoredRoute> group = entry.getValue();
+        GtfsMonitoredRoute representative = group.getFirst();
+        String displayName = group.stream()
           .map(GtfsMonitoredRoute::getRouteShortName)
           .sorted(Comparator.comparingInt(Integer::parseInt))
           .collect(Collectors.joining("/"));
-        return new MonitoredRouteGroupResponse(key.transportMode().name(), key.routeGroup(), displayName);
+        return MonitoredRouteGroupResponse.builder()
+          .transportMode(key.transportMode().name())
+          .routeGroup(key.routeGroup())
+          .displayName(displayName)
+          .focusStart(representative.getFocusStart())
+          .focusEnd(representative.getFocusEnd())
+          .onlyFocused(representative.isOnlyFocused())
+          .build();
       })
-      .sorted(Comparator.comparing(MonitoredRouteGroupResponse::transportMode)
-        .thenComparingInt(MonitoredRouteGroupResponse::routeGroup))
+      .sorted(Comparator.comparing(MonitoredRouteGroupResponse::getTransportMode)
+        .thenComparingInt(MonitoredRouteGroupResponse::getRouteGroup))
       .toList();
+  }
+
+  void validateRouteGroupConsistency(List<GtfsMonitoredRoute> monitoredRoutes) {
+    record GroupKey(TransportMode transportMode, int routeGroup) {}
+
+    Map<GroupKey, List<GtfsMonitoredRoute>> byGroup = monitoredRoutes.stream()
+      .collect(Collectors.groupingBy(r -> new GroupKey(r.getTransportMode(), r.getRouteGroup())));
+
+    List<String> errors = new ArrayList<>();
+    for (Map.Entry<GroupKey, List<GtfsMonitoredRoute>> entry : byGroup.entrySet()) {
+      GroupKey key = entry.getKey();
+      List<GtfsMonitoredRoute> group = entry.getValue();
+      GtfsMonitoredRoute first = group.getFirst();
+      for (int i = 1; i < group.size(); i++) {
+        GtfsMonitoredRoute other = group.get(i);
+        if (other.isOnlyFocused() != first.isOnlyFocused()) {
+          errors.add(String.format("Group %s/%d: onlyFocused — %s=%b vs %s=%b",
+            key.transportMode(), key.routeGroup(),
+            first.getRouteShortName(), first.isOnlyFocused(),
+            other.getRouteShortName(), other.isOnlyFocused()));
+        }
+        if (!Objects.equals(other.getFocusStart(), first.getFocusStart())) {
+          errors.add(String.format("Group %s/%d: focusStart — %s=%s vs %s=%s",
+            key.transportMode(), key.routeGroup(),
+            first.getRouteShortName(), first.getFocusStart(),
+            other.getRouteShortName(), other.getFocusStart()));
+        }
+        if (!Objects.equals(other.getFocusEnd(), first.getFocusEnd())) {
+          errors.add(String.format("Group %s/%d: focusEnd — %s=%s vs %s=%s",
+            key.transportMode(), key.routeGroup(),
+            first.getRouteShortName(), first.getFocusEnd(),
+            other.getRouteShortName(), other.getFocusEnd()));
+        }
+      }
+    }
+
+    if (!errors.isEmpty()) {
+      errors.forEach(log::error);
+      throw new IllegalStateException(
+        "GTFS monitored route group configuration is inconsistent — application cannot start. See errors above.");
+    }
   }
 
   private static GtfsDataset buildEmptyDataset() {

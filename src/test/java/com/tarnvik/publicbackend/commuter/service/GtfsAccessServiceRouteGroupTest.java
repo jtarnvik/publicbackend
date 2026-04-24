@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ExtendWith(MockitoExtension.class)
 class GtfsAccessServiceRouteGroupTest {
@@ -68,25 +69,103 @@ class GtfsAccessServiceRouteGroupTest {
 
     // Output order: transportMode ascending (BUS < METRO < TRAIN), then routeGroup ascending
     MonitoredRouteGroupResponse bus1 = result.get(0);
-    assertThat(bus1.transportMode()).isEqualTo("BUS");
-    assertThat(bus1.routeGroup()).isEqualTo(1);
-    assertThat(bus1.displayName()).isEqualTo("112");
+    assertThat(bus1.getTransportMode()).isEqualTo("BUS");
+    assertThat(bus1.getRouteGroup()).isEqualTo(1);
+    assertThat(bus1.getDisplayName()).isEqualTo("112");
 
     MonitoredRouteGroupResponse bus2 = result.get(1);
-    assertThat(bus2.transportMode()).isEqualTo("BUS");
-    assertThat(bus2.routeGroup()).isEqualTo(2);
-    assertThat(bus2.displayName()).isEqualTo("117");
+    assertThat(bus2.getTransportMode()).isEqualTo("BUS");
+    assertThat(bus2.getRouteGroup()).isEqualTo(2);
+    assertThat(bus2.getDisplayName()).isEqualTo("117");
 
     MonitoredRouteGroupResponse metro1 = result.get(2);
-    assertThat(metro1.transportMode()).isEqualTo("METRO");
-    assertThat(metro1.routeGroup()).isEqualTo(1);
+    assertThat(metro1.getTransportMode()).isEqualTo("METRO");
+    assertThat(metro1.getRouteGroup()).isEqualTo(1);
     // Names must be joined in numeric order (17, 18, 19) regardless of insertion order
-    assertThat(metro1.displayName()).isEqualTo("17/18/19");
+    assertThat(metro1.getDisplayName()).isEqualTo("17/18/19");
 
     MonitoredRouteGroupResponse train1 = result.get(3);
-    assertThat(train1.transportMode()).isEqualTo("TRAIN");
-    assertThat(train1.routeGroup()).isEqualTo(1);
-    assertThat(train1.displayName()).isEqualTo("43/44");
+    assertThat(train1.getTransportMode()).isEqualTo("TRAIN");
+    assertThat(train1.getRouteGroup()).isEqualTo(1);
+    assertThat(train1.getDisplayName()).isEqualTo("43/44");
+    assertThat(train1.getFocusStart()).isNull();
+    assertThat(train1.getFocusEnd()).isNull();
+    assertThat(train1.isOnlyFocused()).isFalse();
+  }
+
+  @Test
+  void getMonitoredRouteGroups_includesFocusFieldsFromRepresentativeRoute() {
+    GtfsMonitoredRoute r43 = route("43", TransportMode.TRAIN, 1);
+    r43.setFocusStart("9021001001009001");
+    r43.setFocusEnd("9021001001007001");
+    r43.setOnlyFocused(true);
+    GtfsMonitoredRoute r44 = route("44", TransportMode.TRAIN, 1);
+    r44.setFocusStart("9021001001009001");
+    r44.setFocusEnd("9021001001007001");
+    r44.setOnlyFocused(true);
+
+    GtfsDataset dataset = new GtfsDataset(
+      List.of(r43, r44),
+      Collections.emptyMap(), Collections.emptyMap(),
+      Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()
+    );
+    ReflectionTestUtils.setField(service, "dataset", new AtomicReference<>(dataset));
+
+    List<MonitoredRouteGroupResponse> result = service.getMonitoredRouteGroups();
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).getFocusStart()).isEqualTo("9021001001009001");
+    assertThat(result.get(0).getFocusEnd()).isEqualTo("9021001001007001");
+    assertThat(result.get(0).isOnlyFocused()).isTrue();
+  }
+
+  @Test
+  void validateRouteGroupConsistency_consistentGroup_doesNotThrow() {
+    GtfsMonitoredRoute r43 = route("43", TransportMode.TRAIN, 1);
+    r43.setFocusStart("start-id");
+    r43.setFocusEnd("end-id");
+    r43.setOnlyFocused(true);
+    GtfsMonitoredRoute r44 = route("44", TransportMode.TRAIN, 1);
+    r44.setFocusStart("start-id");
+    r44.setFocusEnd("end-id");
+    r44.setOnlyFocused(true);
+
+    service.validateRouteGroupConsistency(List.of(r43, r44));
+  }
+
+  @Test
+  void validateRouteGroupConsistency_inconsistentOnlyFocused_throws() {
+    GtfsMonitoredRoute r43 = route("43", TransportMode.TRAIN, 1);
+    GtfsMonitoredRoute r44 = route("44", TransportMode.TRAIN, 1);
+    r44.setOnlyFocused(true);
+
+    assertThatThrownBy(() -> service.validateRouteGroupConsistency(List.of(r43, r44)))
+      .isInstanceOf(IllegalStateException.class)
+      .hasMessageContaining("inconsistent");
+  }
+
+  @Test
+  void validateRouteGroupConsistency_inconsistentFocusStart_throws() {
+    GtfsMonitoredRoute r43 = route("43", TransportMode.TRAIN, 1);
+    r43.setFocusStart("start-a");
+    GtfsMonitoredRoute r44 = route("44", TransportMode.TRAIN, 1);
+    r44.setFocusStart("start-b");
+
+    assertThatThrownBy(() -> service.validateRouteGroupConsistency(List.of(r43, r44)))
+      .isInstanceOf(IllegalStateException.class)
+      .hasMessageContaining("inconsistent");
+  }
+
+  @Test
+  void validateRouteGroupConsistency_inconsistentFocusEnd_throws() {
+    GtfsMonitoredRoute r43 = route("43", TransportMode.TRAIN, 1);
+    r43.setFocusEnd("end-a");
+    GtfsMonitoredRoute r44 = route("44", TransportMode.TRAIN, 1);
+    r44.setFocusEnd("end-b");
+
+    assertThatThrownBy(() -> service.validateRouteGroupConsistency(List.of(r43, r44)))
+      .isInstanceOf(IllegalStateException.class)
+      .hasMessageContaining("inconsistent");
   }
 
   private static GtfsMonitoredRoute route(String shortName, TransportMode mode, int group) {

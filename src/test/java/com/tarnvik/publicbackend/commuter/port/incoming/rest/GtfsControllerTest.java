@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -38,8 +39,9 @@ class GtfsControllerTest {
   @Test
   void getRouteGroups_returnsGroupsWithCorrectFieldNamesAndValues() throws Exception {
     when(gtfsAccessService.getMonitoredRouteGroups()).thenReturn(List.of(
-      new MonitoredRouteGroupResponse("TRAIN", 1, "43/44"),
-      new MonitoredRouteGroupResponse("METRO", 1, "17/18/19")
+      MonitoredRouteGroupResponse.builder().transportMode("TRAIN").routeGroup(1).displayName("43/44").onlyFocused(false).build(),
+      MonitoredRouteGroupResponse.builder().transportMode("METRO").routeGroup(1).displayName("17/18/19")
+        .focusStart("9021001001009001").focusEnd("9021001001007001").onlyFocused(true).build()
     ));
 
     mockMvc.perform(get("/api/protected/gtfs/route-groups"))
@@ -48,8 +50,14 @@ class GtfsControllerTest {
       .andExpect(jsonPath("$[0].transportMode").value("TRAIN"))
       .andExpect(jsonPath("$[0].routeGroup").value(1))
       .andExpect(jsonPath("$[0].displayName").value("43/44"))
+      .andExpect(jsonPath("$[0].focusStart", nullValue()))
+      .andExpect(jsonPath("$[0].focusEnd", nullValue()))
+      .andExpect(jsonPath("$[0].onlyFocused").value(false))
       .andExpect(jsonPath("$[1].transportMode").value("METRO"))
       .andExpect(jsonPath("$[1].routeGroup").value(1))
-      .andExpect(jsonPath("$[1].displayName").value("17/18/19"));
+      .andExpect(jsonPath("$[1].displayName").value("17/18/19"))
+      .andExpect(jsonPath("$[1].focusStart").value("9021001001009001"))
+      .andExpect(jsonPath("$[1].focusEnd").value("9021001001007001"))
+      .andExpect(jsonPath("$[1].onlyFocused").value(true));
   }
 }
