@@ -38,6 +38,15 @@ public class GtfsMonitoredRoute {
   @Column(name = "route_group", nullable = false)
   private int routeGroup;
 
+  @Column(name = "focus_start", length = 50)
+  private String focusStart;
+
+  @Column(name = "focus_end", length = 50)
+  private String focusEnd;
+
+  @Column(name = "only_focused", nullable = false)
+  private boolean onlyFocused;
+
   @CreationTimestamp
   @Column(name = "create_date", updatable = false)
   private LocalDateTime createDate;
