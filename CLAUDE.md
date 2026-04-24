@@ -522,12 +522,26 @@ head -1 stops.txt && grep "9022001006101001\|9022001006171002" stops.txt
 
 ---
 
-### Planned Database Caching Strategy
+### Database Caching Strategy
 
-The application caches static GTFS data for a fixed set of lines of interest into Supabase PostgreSQL to avoid parsing large flat files at runtime.
+Static GTFS data for the monitored lines is cached in PostgreSQL via the pipeline below, then loaded into
+the in-memory `GtfsDataset` on startup. `/tmp` is the working area for download and unzip; the DB is the
+durable store. All GTFS tables use natural GTFS keys — no synthetic IDs, no timestamp columns. RLS enabled
+on all tables per project rule.
 
-- **Scope:** A small number of specific lines (pendeltåg, select bus routes)
-- **Refresh:** Nightly scheduled job (`@Scheduled` cron in Spring Boot), typically around 03:00
-- **Feed versioning:** Check `feed_info.txt` for a new feed version before downloading — reuse cached zip if unchanged
-- **Scale:** Thousands of rows per line per day — well within PostgreSQL capacity
-- **RLS:** All tables must have Row Level Security enabled per project standing rule (see top of CLAUDE.md)
+**Pending:** `feed_version` column on `gtfs_download_log` — populate from `feed_info.txt` during parse,
+show in the GTFS status admin view.
+
+## GTFS Pipeline
+
+`GtfsDownloadJob` (`port.incoming.scheduled`) fires at 05:00 and on `ApplicationReadyEvent`. It is guarded
+by `gtfs_download_log` (one attempt per date); the local profile adds a cap of 15 downloads per 30 days.
+`GtfsPipelineService.runPipeline()` orchestrates the phases: download → unzip → parse. Each phase writes
+start/end timestamps to `gtfs_download_log`. `GtfsDownloadException` (unchecked) aborts the pipeline;
+`RestExceptionHandler` returns HTTP 500 for any that reach a controller. Pipeline failures trigger a Pushover
+notification via `PushoverProvider.sendGtfsPipelineErrorNotification(phase, message)`.
+
+`gtfs_monitored_route` is the source of truth for which lines are tracked. Seeded via Liquibase:
+43/44 (TRAIN), 112/117 (BUS), 17/18/19 (METRO). Variant matching (e.g. 43X) is a uniform regex rule in
+`GtfsNameUtil`, not a per-row flag. 112 exists to exercise route presentation logic — not shown in the
+deviation pane. `@Profile("!test")` prevents the job from running in integration tests.
