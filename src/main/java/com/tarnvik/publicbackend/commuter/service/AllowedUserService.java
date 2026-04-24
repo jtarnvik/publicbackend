@@ -8,12 +8,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class AllowedUserService {
   private final AllowedUserRepository allowedUserRepository;
+
+  @Transactional
+  public void recordLogin(String email) {
+    allowedUserRepository.updateLastLoginByEmail(email, LocalDateTime.now());
+  }
 
   @Transactional(readOnly = true)
   public boolean isEmailAllowed(String email) {

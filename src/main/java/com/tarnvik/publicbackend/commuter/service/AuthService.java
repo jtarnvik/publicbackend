@@ -16,9 +16,11 @@ public class AuthService {
     new SettingsResponse("9091001000003715", "Skogslöparvägen", true, List.of());
 
   private final UserSettingsService userSettingsService;
+  private final AllowedUserService allowedUserService;
 
   public MeResponse buildMeResponse(OAuth2User oauth2User) {
     String email = oauth2User.getAttribute("email");
+    allowedUserService.recordLogin(email);
 
     String role = oauth2User.getAuthorities().stream()
       .map(GrantedAuthority::getAuthority)

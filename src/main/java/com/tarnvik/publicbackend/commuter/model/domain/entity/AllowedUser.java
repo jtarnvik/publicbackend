@@ -42,4 +42,7 @@ public class AllowedUser {
   @UpdateTimestamp
   @Column(name = "latest_update")
   private LocalDateTime latestUpdate;
+
+  @Column(name = "last_login")
+  private LocalDateTime lastLogin;
 }
