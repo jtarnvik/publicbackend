@@ -1,7 +1,9 @@
 package com.tarnvik.publicbackend.commuter.service;
 
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsCalendarDateRepository;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.MonitoredRouteGroupResponse;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsMonitoredRouteRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsRouteRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopRepository;
@@ -25,12 +27,14 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -100,6 +104,26 @@ public class GtfsAccessService {
 
   public GtfsDataset getDataset() {
     return dataset.get();
+  }
+
+  public List<MonitoredRouteGroupResponse> getMonitoredRouteGroups() {
+    List<GtfsMonitoredRoute> routes = dataset.get().getMonitoredRoutes();
+    record GroupKey(TransportMode transportMode, int routeGroup) {}
+
+    return routes.stream()
+      .collect(Collectors.groupingBy(r -> new GroupKey(r.getTransportMode(), r.getRouteGroup())))
+      .entrySet().stream()
+      .map(entry -> {
+        GroupKey key = entry.getKey();
+        String displayName = entry.getValue().stream()
+          .map(GtfsMonitoredRoute::getRouteShortName)
+          .sorted(Comparator.comparingInt(Integer::parseInt))
+          .collect(Collectors.joining("/"));
+        return new MonitoredRouteGroupResponse(key.transportMode().name(), key.routeGroup(), displayName);
+      })
+      .sorted(Comparator.comparing(MonitoredRouteGroupResponse::transportMode)
+        .thenComparingInt(MonitoredRouteGroupResponse::routeGroup))
+      .toList();
   }
 
   private static GtfsDataset buildEmptyDataset() {

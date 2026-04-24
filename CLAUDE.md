@@ -209,6 +209,7 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 | POST | `/api/public/access-request` | Public | Submit an access request |
 | GET | `/api/auth/me` | Optional | Returns user info (with settings) or 401 |
 | POST | `/api/auth/logout` | Optional | Clears session and cookie |
+| GET | `/api/protected/gtfs/route-groups` | User | List selectable monitored route groups (transportMode, routeGroup, displayName) |
 | PUT | `/api/protected/settings` | User | Save stop point settings |
 | DELETE | `/api/protected/account` | User | Delete own account (cascade removes all data, invalidates session). Returns 409 if last admin. |
 | POST | `/api/protected/deviations/interpret` | User | Interpret a list of deviation texts via Claude AI |

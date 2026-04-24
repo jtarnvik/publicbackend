@@ -3,6 +3,7 @@ package com.tarnvik.publicbackend.commuter.model.gtfs;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStop;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStopTime;
+import lombok.Getter;
 
 import java.time.LocalDate;
 import java.util.Collections;
@@ -21,6 +22,7 @@ import java.util.Set;
  * (C1 and later) reveals its access patterns.
  */
 public class GtfsDataset {
+  @Getter
   private final List<GtfsMonitoredRoute> monitoredRoutes;
   private final Map<String, GtfsRouteInfo> routeInfoById;             // key: route_id
   private final Map<String, GtfsTripInfo> tripInfoById;               // key: trip_id
