@@ -3,6 +3,7 @@ package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsDataStatusResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.MonitoredRouteGroupResponse;
 import com.tarnvik.publicbackend.commuter.service.GtfsAccessService;
+import com.tarnvik.publicbackend.commuter.service.GtfsRealtimeService;
 import com.tarnvik.publicbackend.config.AllowedUserArgumentResolver;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +37,7 @@ class GtfsControllerTest {
   @Autowired MockMvc mockMvc;
   @MockitoBean AllowedUserArgumentResolver allowedUserArgumentResolver;
   @MockitoBean GtfsAccessService gtfsAccessService;
+  @MockitoBean GtfsRealtimeService gtfsRealtimeService;
 
   @Test
   void getRouteGroups_returnsGroupsWithCorrectFieldNamesAndValues() throws Exception {

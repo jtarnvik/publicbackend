@@ -6,6 +6,7 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStop;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStopTime;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsVehiclePosition;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.RouteDataResponse;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.samtrafiken.SamtrafikenProvider;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil.VehicleLocation;
@@ -28,6 +29,10 @@ public class GtfsRealtimeService {
   public GtfsRealtimeService(SamtrafikenProvider samtrafikenProvider, GtfsAccessService gtfsAccessService) {
     this.samtrafikenProvider = samtrafikenProvider;
     this.gtfsAccessService = gtfsAccessService;
+  }
+
+  public RouteDataResponse getRouteData(String transportMode, int routeGroup, boolean focused) {
+    return RouteDataResponse.builder().status("OK").build();
   }
 
   // Remember TTL and all that
