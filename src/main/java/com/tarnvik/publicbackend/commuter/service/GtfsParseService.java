@@ -24,6 +24,8 @@ import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -139,6 +141,7 @@ public class GtfsParseService {
 
   private static final String SL_AGENCY_NAME = "Storstockholms Lokaltrafik";
 
+  private final Environment environment;
   private final GtfsDownloadDao gtfsDownloadDao;
   private final GtfsMonitoredRouteRepository gtfsMonitoredRouteRepository;
   private final GtfsRouteRepository gtfsRouteRepository;
@@ -150,6 +153,7 @@ public class GtfsParseService {
   private final EntityManager entityManager;
 
   private static final int STOP_TIME_BATCH_SIZE = 500;
+  private static final int LOCAL_FUTURE_PLACEHOLDER_DAYS = 10;
 
   private record TripParseResult(Set<String> tripIds, Set<String> serviceIds) {}
 
@@ -185,6 +189,13 @@ public class GtfsParseService {
       log.info("OOM: all phases complete — {} routes, {} trips, {} stops, {} calendar dates — committing to database",
         routeIds.size(), tripResult.tripIds().size(), stopCount, calendarDateCount);
       gtfsDownloadDao.markParseDone(entry);
+      if (environment.acceptsProfiles(Profiles.of("local"))) {
+        for (int i = 1; i <= LOCAL_FUTURE_PLACEHOLDER_DAYS; i++) {
+          gtfsDownloadDao.insertParseDonePlaceholder(today.plusDays(i));
+        }
+        log.info("Local profile: inserted {} future PARSE_DONE placeholders to suppress downloads until {}",
+          LOCAL_FUTURE_PLACEHOLDER_DAYS, today.plusDays(LOCAL_FUTURE_PLACEHOLDER_DAYS));
+      }
     } catch (Exception e) {
       throw handlePipelineFailure(entry, "parse", e);
     }

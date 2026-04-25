@@ -11,7 +11,5 @@ public interface GtfsDownloadLogRepository extends JpaRepository<GtfsDownloadLog
 
   Optional<GtfsDownloadLog> findTopByOrderByDateDesc();
 
-  long countByDateAfter(LocalDate date);
-
   void deleteByDateBefore(LocalDate date);
 }

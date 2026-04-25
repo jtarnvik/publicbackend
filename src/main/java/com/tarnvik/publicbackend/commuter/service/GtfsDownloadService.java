@@ -7,8 +7,6 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadStatus
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.pushover.PushoverProvider;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.samtrafiken.SamtrafikenProvider;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -27,23 +25,19 @@ public class GtfsDownloadService {
   private static final Path WORK_DIR = Path.of("/tmp/sl-gtfs-cache");
   private static final Path ZIP_PATH = WORK_DIR.resolve("sl.zip");
   private static final Path UNZIP_DIR = WORK_DIR.resolve("unzipped");
-  private static final int LOCAL_MAX_DOWNLOADS_PER_30_DAYS = 15;
 
   private final GtfsDownloadDao gtfsDownloadDao;
   private final PushoverProvider pushoverProvider;
   private final SamtrafikenProvider samtrafikenProvider;
-  private final Environment environment;
 
   public GtfsDownloadService(
     GtfsDownloadDao gtfsDownloadDao,
     PushoverProvider pushoverProvider,
-    SamtrafikenProvider samtrafikenProvider,
-    Environment environment
+    SamtrafikenProvider samtrafikenProvider
   ) {
     this.gtfsDownloadDao = gtfsDownloadDao;
     this.pushoverProvider = pushoverProvider;
     this.samtrafikenProvider = samtrafikenProvider;
-    this.environment = environment;
   }
 
   public void recoverIfNeeded() {
@@ -71,15 +65,6 @@ public class GtfsDownloadService {
     if (gtfsDownloadDao.findByDate(today).isPresent()) {
       log.info("GTFS download already attempted today ({}), skipping", today);
       return;
-    }
-
-    if (environment.acceptsProfiles(Profiles.of("local"))) {
-      long recentDownloads = gtfsDownloadDao.countByDateAfter(today.minusDays(30));
-      if (recentDownloads > LOCAL_MAX_DOWNLOADS_PER_30_DAYS) {
-        log.warn("GTFS download skipped: {} downloads in the last 30 days exceeds local limit of {}",
-          recentDownloads, LOCAL_MAX_DOWNLOADS_PER_30_DAYS);
-        return;
-      }
     }
 
     GtfsDownloadLog entry = gtfsDownloadDao.insertDownloadStart(today);

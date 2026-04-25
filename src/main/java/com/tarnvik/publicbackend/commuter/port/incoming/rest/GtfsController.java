@@ -1,5 +1,6 @@
 package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 
+import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsDataStatusResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.MonitoredRouteGroupResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.RouteDataResponse;
@@ -33,7 +34,7 @@ public class GtfsController {
 
   @GetMapping("/route-data")
   public ResponseEntity<RouteDataResponse> getRouteData(
-      @RequestParam String transportMode,
+      @RequestParam TransportMode transportMode,
       @RequestParam int routeGroup,
       @RequestParam boolean focused) {
     return ResponseEntity.ok(gtfsRealtimeService.getRouteData(transportMode, routeGroup, focused));

@@ -3,6 +3,7 @@ package com.tarnvik.publicbackend.commuter.model.gtfs;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStop;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStopTime;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import lombok.Getter;
 
 import java.time.LocalDate;
@@ -52,6 +53,13 @@ public class GtfsDataset {
 
   public Optional<GtfsTripInfo> findTripByTripId(String tripId) {
     return Optional.ofNullable(tripInfoById.get(tripId));
+  }
+
+  public Optional<GtfsTripInfo> findTripByTripId(String tripId, TransportMode transportMode, int routeGroup) {
+    Optional<GtfsTripInfo> gtfsTripInfo = Optional.ofNullable(tripInfoById.get(tripId));
+    return gtfsTripInfo
+      .filter(ti -> ti.getRouteInfo().getMonitoredRoute().getTransportMode() == transportMode)
+      .filter(ti -> ti.getRouteInfo().getMonitoredRoute().getRouteGroup() == routeGroup);
   }
 
   public Optional<List<GtfsStopTime>> findStopTimesByTripId(String tripId) {

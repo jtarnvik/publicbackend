@@ -102,8 +102,15 @@ public class GtfsDownloadDao {
     downloadLogRepository.save(entry);
   }
 
-  public long countByDateAfter(LocalDate date) {
-    return downloadLogRepository.countByDateAfter(date);
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void insertParseDonePlaceholder(LocalDate date) {
+    if (downloadLogRepository.findByDate(date).isPresent()) {
+      return;
+    }
+    GtfsDownloadLog entry = new GtfsDownloadLog();
+    entry.setDate(date);
+    entry.setStatus(GtfsDownloadStatus.PARSE_DONE);
+    downloadLogRepository.save(entry);
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)

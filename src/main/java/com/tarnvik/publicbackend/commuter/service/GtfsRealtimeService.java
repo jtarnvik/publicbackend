@@ -1,5 +1,6 @@
 package com.tarnvik.publicbackend.commuter.service;
 
+import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsDataset;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRouteInfo;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStop;
@@ -10,6 +11,8 @@ import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.RouteDataRespon
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.samtrafiken.SamtrafikenProvider;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil.VehicleLocation;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -31,8 +34,30 @@ public class GtfsRealtimeService {
     this.gtfsAccessService = gtfsAccessService;
   }
 
-  public RouteDataResponse getRouteData(String transportMode, int routeGroup, boolean focused) {
-    return RouteDataResponse.builder().status("OK").build();
+  @Data
+  @NoArgsConstructor
+  private static class GtfsTrafficData {
+    private GtfsVehiclePosition vp;
+    private GtfsTripInfo tripInfo;
+    private List<GtfsStopTime> stops;
+  }
+
+
+  public RouteDataResponse getRouteData(TransportMode transportMode, int routeGroup, boolean focused) {
+    try {
+      final GtfsDataset dataset = gtfsAccessService.getDataset();
+      List<GtfsVehiclePosition> gtfsVehiclePositions = samtrafikenProvider.fetchVehiclePositions();
+      log.info("Total number of vehicles {}", gtfsVehiclePositions.size());
+
+      gtfsVehiclePositions.forEach(vp -> {
+        Optional<GtfsTripInfo> tripByTripId = dataset.findTripByTripId(vp.getTripId(), transportMode, routeGroup);
+
+      });
+
+      return RouteDataResponse.builder().status("OK").build();
+    } catch (Exception e) {
+      return RouteDataResponse.builder().status("Failure: " + e.getMessage()).build();
+    }
   }
 
   // Remember TTL and all that
