@@ -6,6 +6,7 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadStatus
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsCalendarDateRepository;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsDataStatusResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.MonitoredRouteGroupResponse;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsMonitoredRouteRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsRouteRepository;
@@ -147,6 +148,14 @@ public class GtfsAccessService {
       .sorted(Comparator.comparing(MonitoredRouteGroupResponse::getTransportMode)
         .thenComparingInt(MonitoredRouteGroupResponse::getRouteGroup))
       .toList();
+  }
+
+  public GtfsDataStatusResponse getDataStatus() {
+    boolean staticDataAvailable = !dataset.get().getMonitoredRoutes().isEmpty();
+    Optional<GtfsDownloadLog> maybeEntry = gtfsDownloadDao.findMostRecent();
+    String date = maybeEntry.map(e -> e.getDate().toString()).orElse(null);
+    String status = maybeEntry.map(e -> e.getStatus().name()).orElse(null);
+    return new GtfsDataStatusResponse(date, status, staticDataAvailable);
   }
 
   void validateRouteGroupConsistency(List<GtfsMonitoredRoute> monitoredRoutes) {

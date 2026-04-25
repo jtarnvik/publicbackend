@@ -4,6 +4,10 @@ This file provides context for AI-assisted development of the `publicbackend` pr
 
 `{{BASE_PACKAGE}}` = `com.tarnvik.publicbackend.commuter`
 
+## Session start
+
+Before generating any Java code, read `src/main/resources/checkstyle.xml` to avoid style violations.
+
 ## Sensitive Files
 
 `application-local.properties` contains real secrets (API keys, database passwords, OAuth credentials). **Never read this file unless explicitly instructed.** If instructed to read it, first warn the user that its contents will be visible in the conversation and may be retained in Anthropic's systems, then wait for confirmation before proceeding.
@@ -217,6 +221,7 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 | GET | `/api/auth/me` | Optional | Returns user info (with settings) or 401 |
 | POST | `/api/auth/logout` | Optional | Clears session and cookie |
 | GET | `/api/protected/gtfs/route-groups` | User | List selectable monitored route groups (transportMode, routeGroup, displayName) |
+| GET | `/api/protected/gtfs/status` | User | GTFS data availability: `date`, `status` (enum name), `staticDataAvailable` (derived from in-memory dataset) |
 | PUT | `/api/protected/settings` | User | Save stop point settings |
 | DELETE | `/api/protected/account` | User | Delete own account (cascade removes all data, invalidates session). Returns 409 if last admin. |
 | POST | `/api/protected/deviations/interpret` | User | Interpret a list of deviation texts via Claude AI |

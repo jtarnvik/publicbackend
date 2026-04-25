@@ -1,5 +1,6 @@
 package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsDataStatusResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.MonitoredRouteGroupResponse;
 import com.tarnvik.publicbackend.commuter.service.GtfsAccessService;
 import com.tarnvik.publicbackend.config.AllowedUserArgumentResolver;
@@ -59,5 +60,27 @@ class GtfsControllerTest {
       .andExpect(jsonPath("$[1].focusStart").value("9021001001009001"))
       .andExpect(jsonPath("$[1].focusEnd").value("9021001001007001"))
       .andExpect(jsonPath("$[1].onlyFocused").value(true));
+  }
+
+  @Test
+  void getDataStatus_whenDatasetLoaded_returnsStaticDataAvailableTrue() throws Exception {
+    when(gtfsAccessService.getDataStatus()).thenReturn(new GtfsDataStatusResponse("2026-04-25", "PARSE_DONE", true));
+
+    mockMvc.perform(get("/api/protected/gtfs/status"))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.staticDataAvailable").value(true))
+      .andExpect(jsonPath("$.date").value("2026-04-25"))
+      .andExpect(jsonPath("$.status").value("PARSE_DONE"));
+  }
+
+  @Test
+  void getDataStatus_whenDatasetEmpty_returnsStaticDataAvailableFalse() throws Exception {
+    when(gtfsAccessService.getDataStatus()).thenReturn(new GtfsDataStatusResponse("2026-04-25", "ERROR_IN_PARSE", false));
+
+    mockMvc.perform(get("/api/protected/gtfs/status"))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.staticDataAvailable").value(false))
+      .andExpect(jsonPath("$.date").value("2026-04-25"))
+      .andExpect(jsonPath("$.status").value("ERROR_IN_PARSE"));
   }
 }

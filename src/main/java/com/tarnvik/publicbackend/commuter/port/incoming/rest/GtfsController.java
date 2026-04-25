@@ -1,5 +1,6 @@
 package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsDataStatusResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.MonitoredRouteGroupResponse;
 import com.tarnvik.publicbackend.commuter.service.GtfsAccessService;
 import lombok.RequiredArgsConstructor;
@@ -19,5 +20,10 @@ public class GtfsController {
   @GetMapping("/route-groups")
   public ResponseEntity<List<MonitoredRouteGroupResponse>> getRouteGroups() {
     return ResponseEntity.ok(gtfsAccessService.getMonitoredRouteGroups());
+  }
+
+  @GetMapping("/status")
+  public ResponseEntity<GtfsDataStatusResponse> getDataStatus() {
+    return ResponseEntity.ok(gtfsAccessService.getDataStatus());
   }
 }

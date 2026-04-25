@@ -35,3 +35,5 @@ public class JvmMemoryMonitorJob {
     log.info(msg.toString());
   }
 }
+// Empty with error state
+// JVM memory — heap: 57MB / 371MB (15%) | old-gen: 42MB / 256MB
