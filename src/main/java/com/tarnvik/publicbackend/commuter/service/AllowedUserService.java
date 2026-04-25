@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 @Service
@@ -18,7 +19,7 @@ public class AllowedUserService {
 
   @Transactional
   public void recordLogin(String email) {
-    allowedUserRepository.updateLastLoginByEmail(email, LocalDateTime.now());
+    allowedUserRepository.updateLastLoginByEmail(email, LocalDateTime.now(ZoneId.of("Europe/Stockholm")));
   }
 
   @Transactional(readOnly = true)
