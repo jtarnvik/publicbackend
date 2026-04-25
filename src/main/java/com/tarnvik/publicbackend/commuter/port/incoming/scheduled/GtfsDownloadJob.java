@@ -43,6 +43,12 @@ public class GtfsDownloadJob {
       gtfsPipelineService.runPipeline();
     } catch (GtfsDownloadException e) {
       log.error("GTFS pipeline stopped: {}", e.getMessage());
+    } catch (Exception e) {
+      if (e.getCause() instanceof IllegalStateException ise && ise.getMessage().contains("EntityManagerFactory is closed")) {
+        log.warn("GTFS pipeline aborted — application is shutting down");
+      } else {
+        log.error("GTFS pipeline failed unexpectedly", e);
+      }
     }
   }
 }

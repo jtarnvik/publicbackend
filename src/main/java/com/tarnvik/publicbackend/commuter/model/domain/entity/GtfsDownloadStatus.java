@@ -7,5 +7,6 @@ public enum GtfsDownloadStatus {
   UNZIP_DONE,
   PARSE_START,
   PARSE_DONE,
-  FAILED
+  FAILED,
+  ERROR_IN_PARSE
 }

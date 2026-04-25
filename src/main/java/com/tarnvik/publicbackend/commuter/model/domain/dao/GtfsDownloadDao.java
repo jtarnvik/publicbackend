@@ -87,6 +87,21 @@ public class GtfsDownloadDao {
     downloadLogRepository.save(entry);
   }
 
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void resetToUnzipDone(GtfsDownloadLog entry) {
+    entry.setStatus(GtfsDownloadStatus.UNZIP_DONE);
+    entry.setParseStartTime(null);
+    entry.setParseEndTime(null);
+    entry.setErrorMessage(null);
+    downloadLogRepository.save(entry);
+  }
+
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void markErrorInParse(GtfsDownloadLog entry) {
+    entry.setStatus(GtfsDownloadStatus.ERROR_IN_PARSE);
+    downloadLogRepository.save(entry);
+  }
+
   public long countByDateAfter(LocalDate date) {
     return downloadLogRepository.countByDateAfter(date);
   }

@@ -1,5 +1,8 @@
 package com.tarnvik.publicbackend.commuter.service;
 
+import com.tarnvik.publicbackend.commuter.model.domain.dao.GtfsDownloadDao;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadLog;
+import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsDownloadStatus;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsCalendarDateRepository;
@@ -26,6 +29,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Optional;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -41,6 +45,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class GtfsAccessService {
+  private final GtfsDownloadDao gtfsDownloadDao;
   private final GtfsMonitoredRouteRepository gtfsMonitoredRouteRepository;
   private final GtfsRouteRepository gtfsRouteRepository;
   private final GtfsTripRepository gtfsTripRepository;
@@ -58,6 +63,13 @@ public class GtfsAccessService {
   }
 
   public void rebuildDataset() {
+    Optional<GtfsDownloadLog> todayEntry = gtfsDownloadDao.findByDate(LocalDate.now());
+    if (todayEntry.isPresent() && isErrorState(todayEntry.get().getStatus())) {
+      log.warn("GTFS dataset not loaded — today's status is {} — live traffic unavailable", todayEntry.get().getStatus());
+      dataset.set(buildEmptyDataset());
+      return;
+    }
+
     List<GtfsMonitoredRoute> monitoredRoutes = gtfsMonitoredRouteRepository.findAll();
 
     Map<String, GtfsRouteInfo> routeInfoById = new HashMap<>();
@@ -176,6 +188,10 @@ public class GtfsAccessService {
       throw new IllegalStateException(
         "GTFS monitored route group configuration is inconsistent — application cannot start. See errors above.");
     }
+  }
+
+  private static boolean isErrorState(GtfsDownloadStatus status) {
+    return status == GtfsDownloadStatus.ERROR_IN_PARSE;
   }
 
   private static GtfsDataset buildEmptyDataset() {

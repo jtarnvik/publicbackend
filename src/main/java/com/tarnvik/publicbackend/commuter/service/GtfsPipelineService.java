@@ -27,6 +27,7 @@ public class GtfsPipelineService {
   private final GtfsCalendarDateRepository gtfsCalendarDateRepository;
 
   public void runPipeline() {
+    gtfsDownloadService.recoverIfNeeded();
     gtfsDownloadService.downloadIfNeeded();
     gtfsDownloadService.unzipIfReady();
     gtfsParseService.parseIfReady();

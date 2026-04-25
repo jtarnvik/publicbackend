@@ -46,6 +46,25 @@ public class GtfsDownloadService {
     this.environment = environment;
   }
 
+  public void recoverIfNeeded() {
+    LocalDate today = LocalDate.now();
+    Optional<GtfsDownloadLog> maybeEntry = gtfsDownloadDao.findByDate(today);
+    if (maybeEntry.isEmpty() || maybeEntry.get().getStatus() != GtfsDownloadStatus.PARSE_START) {
+      return;
+    }
+    GtfsDownloadLog entry = maybeEntry.get();
+    if (Files.exists(UNZIP_DIR.resolve("trips.txt"))) {
+      log.warn("GTFS recovery: status was PARSE_START and unzipped files exist — resetting to UNZIP_DONE for re-parse");
+      gtfsDownloadDao.resetToUnzipDone(entry);
+    } else if (Files.exists(ZIP_PATH)) {
+      log.warn("GTFS recovery: status was PARSE_START and zip exists — resetting to DOWNLOAD_DONE for re-unzip");
+      gtfsDownloadDao.resetToDownloadDone(entry);
+    } else {
+      log.warn("GTFS recovery: status was PARSE_START and /tmp is empty — setting ERROR_IN_PARSE, live traffic unavailable today");
+      gtfsDownloadDao.markErrorInParse(entry);
+    }
+  }
+
   public void downloadIfNeeded() {
     LocalDate today = LocalDate.now();
 

@@ -168,14 +168,21 @@ public class GtfsParseService {
     entityManager.detach(entry);
 
     try {
+      log.info("OOM: phase start — agency");
       String agencyId = parseAgencyId();
+      log.info("OOM: phase start — routes");
       List<GtfsMonitoredRoute> monitoredRoutes = gtfsMonitoredRouteRepository.findAll();
       Set<String> routeIds = parseRoutes(agencyId, monitoredRoutes);
+      log.info("OOM: phase start — trips ({} route IDs)", routeIds.size());
       TripParseResult tripResult = parseTrips(routeIds);
+      log.info("OOM: phase start — stop_times ({} trip IDs, {} service IDs)",
+        tripResult.tripIds().size(), tripResult.serviceIds().size());
       Set<String> stopIds = parseStopTimes(tripResult.tripIds());
+      log.info("OOM: phase start — stops ({} stop IDs)", stopIds.size());
       int stopCount = parseStops(stopIds);
+      log.info("OOM: phase start — calendar_dates ({} service IDs)", tripResult.serviceIds().size());
       int calendarDateCount = parseCalendarDates(tripResult.serviceIds());
-      log.info("GTFS parse complete: {} routes, {} trips, {} stops, {} calendar dates — committing to database",
+      log.info("OOM: all phases complete — {} routes, {} trips, {} stops, {} calendar dates — committing to database",
         routeIds.size(), tripResult.tripIds().size(), stopCount, calendarDateCount);
       gtfsDownloadDao.markParseDone(entry);
     } catch (Exception e) {
@@ -246,7 +253,9 @@ public class GtfsParseService {
       }
     }
 
+    log.info("OOM: routes — deleting existing rows");
     gtfsRouteRepository.deleteAllInBatch();
+    log.info("OOM: routes — saving {} rows", retained.size());
     gtfsRouteRepository.saveAll(retained);
     log.info("Retained {} routes from routes.txt", retained.size());
 
@@ -261,6 +270,7 @@ public class GtfsParseService {
     log.info("Parsing trips.txt");
     Path tripsFile = unzipDir.resolve("trips.txt");
     List<GtfsTrip> retained = new ArrayList<>();
+    int rowsScanned = 0;
 
     try (BufferedReader reader = Files.newBufferedReader(tripsFile)) {
       String headerLine = reader.readLine();
@@ -270,6 +280,10 @@ public class GtfsParseService {
       Map<String, Integer> headers = indexHeaders(headerLine);
       String line;
       while ((line = reader.readLine()) != null) {
+        rowsScanned++;
+        if (rowsScanned % 10_000 == 0) {
+          log.info("OOM: trips — scanned {} rows, retained {} so far", rowsScanned, retained.size());
+        }
         String[] fields = splitCsvLine(line);
         String routeId = getField(fields, headers, "route_id");
         if (!routeIds.contains(routeId)) {
@@ -290,8 +304,14 @@ public class GtfsParseService {
       }
     }
 
+    log.info("OOM: trips — read complete, {} rows scanned, {} retained — deleting existing rows", rowsScanned, retained.size());
     gtfsTripRepository.deleteAllInBatch();
+    log.info("OOM: trips — saving {} rows", retained.size());
     gtfsTripRepository.saveAll(retained);
+    log.info("OOM: trips — flushing");
+    entityManager.flush();
+    log.info("OOM: trips — clearing persistence context");
+    entityManager.clear();
     log.info("Retained {} trips from trips.txt", retained.size());
 
     Set<String> tripIds = new HashSet<>();
@@ -308,7 +328,9 @@ public class GtfsParseService {
     Path stopTimesFile = unzipDir.resolve("stop_times.txt");
     Set<String> retainedStopIds = new HashSet<>();
 
+    log.info("OOM: stop_times — deleting existing rows");
     gtfsStopTimeRepository.deleteAllInBatch();
+    log.info("OOM: stop_times — starting read loop");
 
     List<GtfsStopTime> batch = new ArrayList<>();
     int totalCount = 0;
@@ -360,19 +382,21 @@ public class GtfsParseService {
           totalCount += batch.size();
           batch.clear();
           if (totalCount % 10_000 == 0) {
-            log.info("stop_times.txt progress: {} rows written", totalCount);
+            log.info("OOM: stop_times — {} rows written", totalCount);
           }
         }
       }
     }
 
     if (!batch.isEmpty()) {
+      log.info("OOM: stop_times — saving final batch of {} rows", batch.size());
       gtfsStopTimeRepository.saveAll(batch);
       entityManager.flush();
       entityManager.clear();
       totalCount += batch.size();
     }
 
+    log.info("OOM: stop_times — done, {} rows written, {} unique stops", totalCount, retainedStopIds.size());
     log.info("Retained {} stop times from stop_times.txt ({} unique stops)", totalCount, retainedStopIds.size());
     return retainedStopIds;
   }
@@ -418,9 +442,23 @@ public class GtfsParseService {
       }
     }
 
-    log.info("Found {} unique parent station IDs — starting second pass", parentStationIds.size());
+    log.info("OOM: stops — first pass done, {} platforms retained, {} parent station IDs found", retained.size(), parentStationIds.size());
+    if (parentStationIds.isEmpty()) {
+      log.info("OOM: stops — no parent stations, deleting existing rows");
+      gtfsStopRepository.deleteAllInBatch();
+      log.info("OOM: stops — saving {} rows", retained.size());
+      gtfsStopRepository.saveAll(retained);
+      log.info("Retained {} stops from stops.txt ({} platforms, 0 parent stations)", retained.size(), stopIds.size());
+      return retained.size();
+    }
+    log.info("OOM: stops — starting second pass for parent stations");
+    // Safety assumption: parent station IDs (9021001...) never overlap with platform stop IDs (9022001...),
+    // so retained cannot contain duplicates after the second pass.
     try (BufferedReader reader = Files.newBufferedReader(stopsFile)) {
       String headerLine = reader.readLine();
+      if (headerLine == null) {
+        throw new GtfsDownloadException("stops.txt is empty on second pass", null);
+      }
       Map<String, Integer> headers = indexHeaders(headerLine);
       String line;
       while ((line = reader.readLine()) != null) {
@@ -447,7 +485,9 @@ public class GtfsParseService {
       }
     }
 
+    log.info("OOM: stops — second pass done, {} total rows (platforms + parent stations) — deleting existing rows", retained.size());
     gtfsStopRepository.deleteAllInBatch();
+    log.info("OOM: stops — saving {} rows", retained.size());
     gtfsStopRepository.saveAll(retained);
     log.info("Retained {} stops from stops.txt ({} platforms, {} parent stations)",
       retained.size(), stopIds.size(), parentStationIds.size());
@@ -458,6 +498,7 @@ public class GtfsParseService {
     log.info("Parsing calendar_dates.txt");
     Path calendarDatesFile = unzipDir.resolve("calendar_dates.txt");
     List<GtfsCalendarDate> retained = new ArrayList<>();
+    int rowsScanned = 0;
 
     try (BufferedReader reader = Files.newBufferedReader(calendarDatesFile)) {
       String headerLine = reader.readLine();
@@ -467,6 +508,10 @@ public class GtfsParseService {
       Map<String, Integer> headers = indexHeaders(headerLine);
       String line;
       while ((line = reader.readLine()) != null) {
+        rowsScanned++;
+        if (rowsScanned % 10_000 == 0) {
+          log.info("OOM: calendar_dates — scanned {} rows, retained {} so far", rowsScanned, retained.size());
+        }
         String[] fields = splitCsvLine(line);
         String serviceId = getField(fields, headers, "service_id");
         if (!serviceIds.contains(serviceId)) {
@@ -490,8 +535,14 @@ public class GtfsParseService {
       }
     }
 
+    log.info("OOM: calendar_dates — read complete, {} rows scanned, {} retained — deleting existing rows", rowsScanned, retained.size());
     gtfsCalendarDateRepository.deleteAllInBatch();
+    log.info("OOM: calendar_dates — saving {} rows", retained.size());
     gtfsCalendarDateRepository.saveAll(retained);
+    log.info("OOM: calendar_dates — flushing");
+    entityManager.flush();
+    log.info("OOM: calendar_dates — clearing persistence context");
+    entityManager.clear();
     log.info("Retained {} calendar dates from calendar_dates.txt", retained.size());
     return retained.size();
   }
