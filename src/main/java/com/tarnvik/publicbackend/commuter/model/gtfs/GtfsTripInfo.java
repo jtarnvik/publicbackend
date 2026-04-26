@@ -1,13 +1,16 @@
 package com.tarnvik.publicbackend.commuter.model.gtfs;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import lombok.Builder;
+import lombok.Value;
 
-@Getter
-@RequiredArgsConstructor
+import java.util.List;
+
+@Value
+@Builder
 public class GtfsTripInfo {
-  private final String tripId;
-  private final int directionId;
-  private final String serviceId;
-  private final GtfsRouteInfo routeInfo;
+  String tripId;
+  int directionId;
+  String serviceId;
+  GtfsRouteInfo routeInfo;
+  List<GtfsStopTimeInfo> stopTimes;
 }

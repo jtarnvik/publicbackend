@@ -48,8 +48,9 @@ public class GtfsRealtimeService {
       List<GtfsVehiclePosition> gtfsVehiclePositions = samtrafikenProvider.fetchVehiclePositions();
       log.info("Total number of vehicles {}", gtfsVehiclePositions.size());
 
-      gtfsVehiclePositions.forEach(vp ->
-        dataset.findTripByTripId(vp.getTripId(), transportMode, routeGroup)
+      gtfsVehiclePositions.forEach(vp -> {
+          Optional<GtfsTripInfo> tripByTripId = dataset.findTripByTripId(vp.getTripId(), transportMode, routeGroup);
+        }
       );
 
       return RouteDataResponse.builder().status("OK").build();

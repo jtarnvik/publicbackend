@@ -83,12 +83,6 @@ public class GtfsAccessService {
         new GtfsRouteInfo(route.getRouteId(), route.getRouteShortName(), route.getRouteLongName(), route.getRouteType(), monitoredRoute));
     }
 
-    Map<String, GtfsTripInfo> tripInfoById = new HashMap<>();
-    for (GtfsTrip trip : gtfsTripRepository.findAll()) {
-      GtfsRouteInfo routeInfo = routeInfoById.get(trip.getRouteId());
-      tripInfoById.put(trip.getTripId(), new GtfsTripInfo(trip.getTripId(), trip.getDirectionId(), trip.getServiceId(), routeInfo));
-    }
-
     List<GtfsStop> allStops = gtfsStopRepository.findAll();
     Map<String, GtfsStopInfo> stopsById = new HashMap<>();
     for (GtfsStop stop : allStops) {
@@ -138,8 +132,22 @@ public class GtfsAccessService {
         .computeIfAbsent(stopTime.getId().getTripId(), k -> new ArrayList<>())
         .add(info);
     }
-    for (List<GtfsStopTimeInfo> stopTimes : stopTimesByTripId.values()) {
-      stopTimes.sort(Comparator.comparingInt(GtfsStopTimeInfo::getStopSequence));
+    for (Map.Entry<String, List<GtfsStopTimeInfo>> entry : stopTimesByTripId.entrySet()) {
+      entry.getValue().sort(Comparator.comparingInt(GtfsStopTimeInfo::getStopSequence));
+      entry.setValue(Collections.unmodifiableList(entry.getValue()));
+    }
+
+    Map<String, GtfsTripInfo> tripInfoById = new HashMap<>();
+    for (GtfsTrip trip : gtfsTripRepository.findAll()) {
+      GtfsRouteInfo routeInfo = routeInfoById.get(trip.getRouteId());
+      List<GtfsStopTimeInfo> stopTimes = stopTimesByTripId.getOrDefault(trip.getTripId(), List.of());
+      tripInfoById.put(trip.getTripId(), GtfsTripInfo.builder()
+        .tripId(trip.getTripId())
+        .directionId(trip.getDirectionId())
+        .serviceId(trip.getServiceId())
+        .routeInfo(routeInfo)
+        .stopTimes(stopTimes)
+        .build());
     }
 
     Map<LocalDate, Set<String>> activeServiceIdsByDate = new HashMap<>();

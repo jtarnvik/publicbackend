@@ -20,8 +20,13 @@ public class JvmMemoryMonitorJob {
     long maxMb = heap.getMax() / 1_048_576;
     int pct = maxMb > 0 ? (int) (100 * heap.getUsed() / heap.getMax()) : -1;
 
+    MemoryUsage nonHeap = ManagementFactory.getMemoryMXBean().getNonHeapMemoryUsage();
+    long nonHeapUsedMb = nonHeap.getUsed() / 1_048_576;
+    long nonHeapCommittedMb = nonHeap.getCommitted() / 1_048_576;
+
     StringBuilder msg = new StringBuilder();
     msg.append(String.format("JVM memory — heap: %dMB / %dMB (%d%%)", usedMb, maxMb, pct));
+    msg.append(String.format(" | non-heap: %dMB / %dMB committed", nonHeapUsedMb, nonHeapCommittedMb));
 
     for (MemoryPoolMXBean pool : ManagementFactory.getMemoryPoolMXBeans()) {
       if (pool.getName().contains("Old") || pool.getName().contains("Tenured")) {
@@ -35,5 +40,3 @@ public class JvmMemoryMonitorJob {
     log.info(msg.toString());
   }
 }
-// Empty with error state
-// JVM memory — heap: 57MB / 371MB (15%) | old-gen: 42MB / 256MB
