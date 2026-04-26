@@ -17,9 +17,11 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsCalendarDate;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsDataset;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsRoute;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRouteInfo;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopInfo;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStop;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStopTime;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsTrip;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsNameUtil;
 import lombok.RequiredArgsConstructor;
@@ -87,19 +89,57 @@ public class GtfsAccessService {
       tripInfoById.put(trip.getTripId(), new GtfsTripInfo(trip.getTripId(), trip.getDirectionId(), trip.getServiceId(), routeInfo));
     }
 
-    Map<String, GtfsStop> stopsById = new HashMap<>();
-    for (GtfsStop stop : gtfsStopRepository.findAll()) {
-      stopsById.put(stop.getStopId(), stop);
+    List<GtfsStop> allStops = gtfsStopRepository.findAll();
+    Map<String, GtfsStopInfo> stopsById = new HashMap<>();
+    for (GtfsStop stop : allStops) {
+      if (stop.getParentStation() == null) {
+        stopsById.put(stop.getStopId(), GtfsStopInfo.builder()
+          .stopId(stop.getStopId())
+          .stopName(stop.getStopName())
+          .stopLat(stop.getStopLat())
+          .stopLon(stop.getStopLon())
+          .locationType(stop.getLocationType())
+          .build());
+      }
+    }
+    for (GtfsStop stop : allStops) {
+      if (stop.getParentStation() != null) {
+        GtfsStopInfo parent = stopsById.get(stop.getParentStation());
+        if (parent == null) {
+          throw new IllegalStateException(
+            "Parent station not found for stop " + stop.getStopId() + ": " + stop.getParentStation());
+        }
+        stopsById.put(stop.getStopId(), GtfsStopInfo.builder()
+          .stopId(stop.getStopId())
+          .stopName(stop.getStopName())
+          .stopLat(stop.getStopLat())
+          .stopLon(stop.getStopLon())
+          .locationType(stop.getLocationType())
+          .parentStation(parent)
+          .build());
+      }
     }
 
-    Map<String, List<GtfsStopTime>> stopTimesByTripId = new HashMap<>();
+    Map<String, List<GtfsStopTimeInfo>> stopTimesByTripId = new HashMap<>();
     for (GtfsStopTime stopTime : gtfsStopTimeRepository.findAll()) {
+      GtfsStopInfo stop = stopsById.get(stopTime.getStopId());
+      if (stop == null) {
+        throw new IllegalStateException("Stop not found for stop_id: " + stopTime.getStopId());
+      }
+      GtfsStopTimeInfo info = GtfsStopTimeInfo.builder()
+        .stopSequence(stopTime.getId().getStopSequence())
+        .stop(stop)
+        .arrivalTime(stopTime.getArrivalTime())
+        .departureTime(stopTime.getDepartureTime())
+        .shapeDistTraveled(stopTime.getShapeDistTraveled())
+        .stopHeadsign(stopTime.getStopHeadsign())
+        .build();
       stopTimesByTripId
         .computeIfAbsent(stopTime.getId().getTripId(), k -> new ArrayList<>())
-        .add(stopTime);
+        .add(info);
     }
-    for (List<GtfsStopTime> stopTimes : stopTimesByTripId.values()) {
-      stopTimes.sort((a, b) -> Integer.compare(a.getId().getStopSequence(), b.getId().getStopSequence()));
+    for (List<GtfsStopTimeInfo> stopTimes : stopTimesByTripId.values()) {
+      stopTimes.sort(Comparator.comparingInt(GtfsStopTimeInfo::getStopSequence));
     }
 
     Map<LocalDate, Set<String>> activeServiceIdsByDate = new HashMap<>();

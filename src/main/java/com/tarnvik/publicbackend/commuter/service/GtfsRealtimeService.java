@@ -3,8 +3,8 @@ package com.tarnvik.publicbackend.commuter.service;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsDataset;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRouteInfo;
-import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStop;
-import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStopTime;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopInfo;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsVehiclePosition;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.RouteDataResponse;
@@ -39,9 +39,8 @@ public class GtfsRealtimeService {
   private static class GtfsTrafficData {
     private GtfsVehiclePosition vp;
     private GtfsTripInfo tripInfo;
-    private List<GtfsStopTime> stops;
+    private List<GtfsStopTimeInfo> stops;
   }
-
 
   public RouteDataResponse getRouteData(TransportMode transportMode, int routeGroup, boolean focused) {
     try {
@@ -49,10 +48,9 @@ public class GtfsRealtimeService {
       List<GtfsVehiclePosition> gtfsVehiclePositions = samtrafikenProvider.fetchVehiclePositions();
       log.info("Total number of vehicles {}", gtfsVehiclePositions.size());
 
-      gtfsVehiclePositions.forEach(vp -> {
-        Optional<GtfsTripInfo> tripByTripId = dataset.findTripByTripId(vp.getTripId(), transportMode, routeGroup);
-
-      });
+      gtfsVehiclePositions.forEach(vp ->
+        dataset.findTripByTripId(vp.getTripId(), transportMode, routeGroup)
+      );
 
       return RouteDataResponse.builder().status("OK").build();
     } catch (Exception e) {
@@ -108,25 +106,23 @@ public class GtfsRealtimeService {
             gtfsTripInfo.getServiceId(),
             gtfsTripInfo.getDirectionId());
 
-          List<GtfsStopTime> gtfsStopTimes = dataset.findStopTimesByTripId(vp.getTripId()).orElseThrow();
+          List<GtfsStopTimeInfo> gtfsStopTimes = dataset.findStopTimesByTripId(vp.getTripId()).orElseThrow();
           log.info("Found {} stop times", gtfsStopTimes.size());
           StringBuffer buf = new StringBuffer("Stop chain mot ");
           buf.append(gtfsStopTimes.get(0).getStopHeadsign());
           buf.append(": ");
           String chain = gtfsStopTimes.stream()
             .map(st -> {
-              String stopId = st.getStopId();
-              GtfsStop stop = dataset.getStopByStopId(stopId).orElseThrow();
-              String parentStation = stop.getParentStation();
-              GtfsStop parentStop = dataset.getStopByStopId(parentStation).orElseThrow();
-              return stop.getStopName() + "/" + stopId + "/" + parentStation + "/" + parentStop.getStopName();
+              GtfsStopInfo stop = st.getStop();
+              GtfsStopInfo parent = stop.getParentStation();
+              return stop.getStopName() + "/" + stop.getStopId() + "/" + parent.getStopId() + "/" + parent.getStopName();
             })
             .collect(Collectors.joining(" -> "));
           buf.append(chain);
           log.info(buf.toString());
 
-          List<GtfsStop> gtfsStops = gtfsStopTimes.stream()
-            .map(st -> dataset.getStopByStopId(st.getStopId()).orElseThrow())
+          List<GtfsStopInfo> gtfsStops = gtfsStopTimes.stream()
+            .map(GtfsStopTimeInfo::getStop)
             .toList();
 
           VehicleLocation vehicleLocation = GtfsGeometryUtil.locateOnRoute(gtfsStops, vp);

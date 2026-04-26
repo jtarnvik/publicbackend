@@ -1,8 +1,6 @@
 package com.tarnvik.publicbackend.commuter.model.gtfs;
 
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute;
-import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStop;
-import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsStopTime;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import lombok.Getter;
 
@@ -27,16 +25,16 @@ public class GtfsDataset {
   private final List<GtfsMonitoredRoute> monitoredRoutes;
   private final Map<String, GtfsRouteInfo> routeInfoById;             // key: route_id
   private final Map<String, GtfsTripInfo> tripInfoById;               // key: trip_id
-  private final Map<String, GtfsStop> stopsById;                      // key: stop_id
-  private final Map<String, List<GtfsStopTime>> stopTimesByTripId;    // key: trip_id, list sorted by stop_sequence
+  private final Map<String, GtfsStopInfo> stopsById;                      // key: stop_id
+  private final Map<String, List<GtfsStopTimeInfo>> stopTimesByTripId;    // key: trip_id, list sorted by stop_sequence
   private final Map<LocalDate, Set<String>> activeServiceIdsByDate;   // key: service date, value: active service_ids
 
   public GtfsDataset(
     List<GtfsMonitoredRoute> monitoredRoutes,
     Map<String, GtfsRouteInfo> routeInfoById,
     Map<String, GtfsTripInfo> tripInfoById,
-    Map<String, GtfsStop> stopsById,
-    Map<String, List<GtfsStopTime>> stopTimesByTripId,
+    Map<String, GtfsStopInfo> stopsById,
+    Map<String, List<GtfsStopTimeInfo>> stopTimesByTripId,
     Map<LocalDate, Set<String>> activeServiceIdsByDate
   ) {
     this.monitoredRoutes = Collections.unmodifiableList(monitoredRoutes);
@@ -62,11 +60,11 @@ public class GtfsDataset {
       .filter(ti -> ti.getRouteInfo().getMonitoredRoute().getRouteGroup() == routeGroup);
   }
 
-  public Optional<List<GtfsStopTime>> findStopTimesByTripId(String tripId) {
+  public Optional<List<GtfsStopTimeInfo>> findStopTimesByTripId(String tripId) {
     return Optional.ofNullable(stopTimesByTripId.get(tripId));
   }
 
-  public Optional<GtfsStop> getStopByStopId(String stopId){
+  public Optional<GtfsStopInfo> getStopByStopId(String stopId){
     return Optional.ofNullable(stopsById.get(stopId));
   }
 }

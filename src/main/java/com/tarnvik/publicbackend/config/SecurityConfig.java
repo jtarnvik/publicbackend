@@ -56,6 +56,7 @@ public class SecurityConfig {
       .cors(cors -> cors.configurationSource(corsConfigurationSource()))
       .authorizeHttpRequests(auth -> auth
         .requestMatchers("/ping").permitAll()
+        .requestMatchers("/favicon.ico").permitAll()
         .requestMatchers("/api/public/**").permitAll()
         .requestMatchers("/api/auth/me").permitAll()
         .requestMatchers("/api/protected/**").authenticated()
