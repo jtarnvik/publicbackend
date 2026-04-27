@@ -31,6 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryUsage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -172,6 +174,7 @@ public class GtfsParseService {
     entityManager.detach(entry);
 
     try {
+      logMemory("parse-start");
       log.info("OOM: phase start — agency");
       String agencyId = parseAgencyId();
       log.info("OOM: phase start — routes");
@@ -323,6 +326,7 @@ public class GtfsParseService {
     entityManager.flush();
     log.info("OOM: trips — clearing persistence context");
     entityManager.clear();
+    logMemory("post-trips");
     log.info("Retained {} trips from trips.txt", retained.size());
 
     Set<String> tripIds = new HashSet<>();
@@ -394,6 +398,7 @@ public class GtfsParseService {
           batch.clear();
           if (totalCount % 10_000 == 0) {
             log.info("OOM: stop_times — {} rows written", totalCount);
+            logMemory("stop_times-" + totalCount);
           }
         }
       }
@@ -408,6 +413,7 @@ public class GtfsParseService {
     }
 
     log.info("OOM: stop_times — done, {} rows written, {} unique stops", totalCount, retainedStopIds.size());
+    logMemory("post-stop_times");
     log.info("Retained {} stop times from stop_times.txt ({} unique stops)", totalCount, retainedStopIds.size());
     return retainedStopIds;
   }
@@ -554,8 +560,19 @@ public class GtfsParseService {
     entityManager.flush();
     log.info("OOM: calendar_dates — clearing persistence context");
     entityManager.clear();
+    logMemory("post-calendar_dates");
     log.info("Retained {} calendar dates from calendar_dates.txt", retained.size());
     return retained.size();
+  }
+
+  private void logMemory(String label) {
+    MemoryUsage heap = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();
+    MemoryUsage nonHeap = ManagementFactory.getMemoryMXBean().getNonHeapMemoryUsage();
+    long heapUsed = heap.getUsed() / 1_048_576;
+    long heapMax = heap.getMax() / 1_048_576;
+    int pct = heapMax > 0 ? (int) (100 * heap.getUsed() / heap.getMax()) : -1;
+    long nonHeapUsed = nonHeap.getUsed() / 1_048_576;
+    log.info("MEM [{}] heap: {}MB/{}MB ({}%) | non-heap: {}MB", label, heapUsed, heapMax, pct, nonHeapUsed);
   }
 
   private boolean matchesMonitoredRoute(String routeShortName, int routeType, List<GtfsMonitoredRoute> monitoredRoutes) {

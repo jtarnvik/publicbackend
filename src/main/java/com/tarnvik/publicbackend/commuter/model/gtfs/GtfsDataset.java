@@ -2,6 +2,10 @@ package com.tarnvik.publicbackend.commuter.model.gtfs;
 
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
+import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsEmptyTripException;
+import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsLiveException;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.Getter;
 
 import java.time.LocalDate;
@@ -10,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Immutable in-memory snapshot of the static GTFS data for the monitored lines. Built once by
@@ -45,6 +50,53 @@ public class GtfsDataset {
     this.activeServiceIdsByDate = Collections.unmodifiableMap(activeServiceIdsByDate);
   }
 
+  @Data
+  @AllArgsConstructor
+  private static class LiveTrip {
+    private int direction;
+    private String stopHeading;
+    private final List<LiveStop> liveStops;
+
+    public LiveTrip(GtfsTripInfo firstTrip) throws GtfsLiveException {
+      if (firstTrip.getStopTimes().isEmpty()) {
+        throw new GtfsEmptyTripException();
+      }
+      this.stopHeading = firstTrip.getStopTimes().getFirst().getStopHeadsign();
+      this.direction = firstTrip.getDirectionId();
+      this.liveStops = firstTrip.getStopTimes().stream()
+        .map(sti -> new LiveStop(sti))
+        .collect(Collectors.toList());
+    }
+  }
+
+  @Data
+  private static class LiveStop {
+    public LiveStop(GtfsStopTimeInfo sti) {
+    }
+  }
+
+//  private void organizeRoutes() {
+//    record GroupKey(TransportMode transportMode, int routeGroup) {
+//    }
+//
+//    Map<GroupKey, List<GtfsMonitoredRoute>> byGroup = monitoredRoutes.stream()
+//      .collect(Collectors.groupingBy(r -> new GroupKey(r.getTransportMode(), r.getRouteGroup())));
+//
+//    Map<GroupKey, List<GtfsTripInfo>> groupTrips = tripInfoById.values().stream()
+//      .filter(trip -> byGroup.containsKey(new GroupKey(trip.getRouteInfo().getMonitoredRoute().getTransportMode(), trip.getRouteInfo().getMonitoredRoute().getRouteGroup())))
+//      .collect(Collectors.groupingBy(trip -> new GroupKey(trip.getRouteInfo().getMonitoredRoute().getTransportMode(), trip.getRouteInfo().getMonitoredRoute().getRouteGroup())));
+//
+//    groupTrips.forEach((group, trips) -> {
+//      GtfsTripInfo firstTrip = trips.getFirst();
+//      LiveTrip trip = new LiveTrip(firstTrip);
+//
+//      for (int i = 1; i < trips.size(); ++i) {
+//        GtfsTripInfo next = trips.get(i);
+//
+//      }
+//    });
+//  }
+
   public boolean isEmpty() {
     return routeInfoById.isEmpty();
   }
@@ -64,7 +116,7 @@ public class GtfsDataset {
     return Optional.ofNullable(stopTimesByTripId.get(tripId));
   }
 
-  public Optional<GtfsStopInfo> getStopByStopId(String stopId){
+  public Optional<GtfsStopInfo> getStopByStopId(String stopId) {
     return Optional.ofNullable(stopsById.get(stopId));
   }
 }

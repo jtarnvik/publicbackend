@@ -39,7 +39,6 @@ public class GtfsRealtimeService {
   private static class GtfsTrafficData {
     private GtfsVehiclePosition vp;
     private GtfsTripInfo tripInfo;
-    private List<GtfsStopTimeInfo> stops;
   }
 
   public RouteDataResponse getRouteData(TransportMode transportMode, int routeGroup, boolean focused) {
