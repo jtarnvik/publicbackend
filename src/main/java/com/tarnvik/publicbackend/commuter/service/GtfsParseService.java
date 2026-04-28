@@ -174,6 +174,7 @@ public class GtfsParseService {
     entityManager.detach(entry);
 
     try {
+      System.gc();
       logMemory("parse-start");
       log.info("OOM: phase start — agency");
       String agencyId = parseAgencyId();

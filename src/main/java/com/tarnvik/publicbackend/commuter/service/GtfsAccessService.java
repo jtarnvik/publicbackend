@@ -61,6 +61,11 @@ public class GtfsAccessService {
   @EventListener(ApplicationReadyEvent.class)
   public void onApplicationReady() {
     log.info("Application ready — loading GTFS dataset from database");
+    if (!dataset.get().isEmpty()) {
+      log.info("GTFS dataset already loaded by pipeline, skipping redundant load");
+      validateRouteGroupConsistency(dataset.get().getMonitoredRoutes());
+      return;
+    }
     rebuildDataset();
     validateRouteGroupConsistency(dataset.get().getMonitoredRoutes());
   }
