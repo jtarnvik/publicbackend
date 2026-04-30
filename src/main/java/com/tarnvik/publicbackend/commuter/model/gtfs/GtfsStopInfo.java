@@ -1,5 +1,7 @@
 package com.tarnvik.publicbackend.commuter.model.gtfs;
 
+import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsNoParentForStopException;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.GtfsParent;
 import lombok.Builder;
 import lombok.Value;
 
@@ -25,5 +27,12 @@ public class GtfsStopInfo implements GeoPosition {
 
   public boolean hasParentStation() {
     return parentStation != null;
+  }
+
+  public GtfsParent getParent() throws GtfsNoParentForStopException {
+    if (hasParentStation()) {
+      return new GtfsParent(parentStation.getStopId(), parentStation.getStopName());
+    }
+    throw new GtfsNoParentForStopException(this);
   }
 }

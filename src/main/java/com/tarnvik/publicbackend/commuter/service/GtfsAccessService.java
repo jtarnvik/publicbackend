@@ -28,6 +28,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -55,6 +57,7 @@ public class GtfsAccessService {
   private final GtfsStopRepository gtfsStopRepository;
   private final GtfsStopTimeRepository gtfsStopTimeRepository;
   private final GtfsCalendarDateRepository gtfsCalendarDateRepository;
+  private final Environment environment;
 
   private final AtomicReference<GtfsDataset> dataset = new AtomicReference<>(buildEmptyDataset());
 
@@ -71,6 +74,10 @@ public class GtfsAccessService {
   }
 
   public void rebuildDataset() {
+    if (!environment.acceptsProfiles(Profiles.of("local"))) {
+      log.info("GTFS in-memory dataset disabled in non-local profile — skipping load");
+      return;
+    }
     Optional<GtfsDownloadLog> todayEntry = gtfsDownloadDao.findByDate(LocalDate.now());
     if (todayEntry.isPresent() && isErrorState(todayEntry.get().getStatus())) {
       log.warn("GTFS dataset not loaded — today's status is {} — live traffic unavailable", todayEntry.get().getStatus());

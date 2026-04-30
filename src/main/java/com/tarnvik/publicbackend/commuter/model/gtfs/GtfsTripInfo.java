@@ -1,5 +1,6 @@
 package com.tarnvik.publicbackend.commuter.model.gtfs;
 
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.GroupKey;
 import lombok.Builder;
 import lombok.Value;
 
@@ -13,4 +14,8 @@ public class GtfsTripInfo {
   String serviceId;
   GtfsRouteInfo routeInfo;
   List<GtfsStopTimeInfo> stopTimes;
+
+  public GroupKey getGroupKey() {
+    return routeInfo.getMonitoredRoute().getGroupKey();
+  }
 }

@@ -1,5 +1,6 @@
 package com.tarnvik.publicbackend.commuter.model.domain.entity;
 
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.GroupKey;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -54,4 +55,8 @@ public class GtfsMonitoredRoute {
   @UpdateTimestamp
   @Column(name = "latest_update")
   private LocalDateTime latestUpdate;
+
+  public GroupKey getGroupKey() {
+    return new GroupKey(transportMode, routeGroup);
+  }
 }
