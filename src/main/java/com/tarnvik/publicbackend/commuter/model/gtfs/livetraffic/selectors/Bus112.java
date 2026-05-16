@@ -10,13 +10,14 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.tarnvik.publicbackend.commuter.model.gtfs.ParentStopIdentifier.ALVIK;
+
 @Slf4j
 public class Bus112 extends GtfsTripInfoSelector {
   private final static int STATION_COUNT = 23;
-  private final static String STATION_ID = "9021001012025000";
 
   public Bus112() {
-    super(STATION_COUNT, STATION_ID);
+    super(STATION_COUNT, ALVIK);
   }
 
   public static GroupKey getGroupKey() {
@@ -55,8 +56,10 @@ public class Bus112 extends GtfsTripInfoSelector {
 //      }
 //    }
     GtfsTripInfo idTrip = findIdTrip(trips);
-//    Fles hållplaster, men den behöver vändas på
+    LiveTrip liveTrip = new LiveTrip(idTrip, new ArrayList<>());
+    liveTrip.reverseTrip();
+//    Flest hållplaster, men den behöver vändas på
 
-    return new LiveTrip(idTrip, new ArrayList<>());
+    return liveTrip;
   }
 }

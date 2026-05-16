@@ -2,17 +2,20 @@ package com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.selectors;
 
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
+import com.tarnvik.publicbackend.commuter.model.gtfs.ParentStopIdentifier;
+import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsNoFullTripException;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.GroupKey;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveTrip;
 
 import java.util.List;
 
+import static com.tarnvik.publicbackend.commuter.model.gtfs.ParentStopIdentifier.RANDOW;
+
 public class MetroGreen extends GtfsTripInfoSelector {
   private final static int STATION_COUNT = 28;
-  private final static String STATION_ID = "9021001006101000";
 
   public MetroGreen() {
-    super(STATION_COUNT, STATION_ID);
+    super(STATION_COUNT, RANDOW);
   }
 
   public static GroupKey getGroupKey() {
@@ -20,7 +23,8 @@ public class MetroGreen extends GtfsTripInfoSelector {
   }
 
   @Override
-  public LiveTrip select(List<GtfsTripInfo> trips) {
+  public LiveTrip select(List<GtfsTripInfo> trips) throws GtfsNoFullTripException {
+//    GtfsTripInfo idTrip = findIdTrip(trips);
     return null;
 //    throw new NotImplementedException();
   }

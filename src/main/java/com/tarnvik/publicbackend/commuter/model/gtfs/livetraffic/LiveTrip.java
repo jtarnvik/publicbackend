@@ -4,6 +4,7 @@ import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsEmptyTripException;
 import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsLiveException;
+import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsUnknownDirectionId;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.util.GtfsUtil;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.variations.EndStopRouteVariant;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.variations.RouteVariant;
@@ -42,5 +43,25 @@ public class LiveTrip {
       distSoFar = liveStop.getShapeDistTraveled();
       this.liveStops.add(liveStop);
     }
+  }
+
+  public void reverseTrip() throws GtfsUnknownDirectionId {
+    Double totalDist = liveStops.getLast().getShapeDistTraveled();
+    String newHeading = liveStops.getFirst().getStopName();
+
+    List<LiveStop> reversed = new ArrayList<>(liveStops.size());
+    for (int i = liveStops.size() - 1; i >= 0; i--) {
+      LiveStop orig = liveStops.get(i);
+      Double newDist = totalDist - orig.getShapeDistTraveled();
+      Double newDistSinceLast = (i == liveStops.size() - 1)
+          ? 0.0
+          : liveStops.get(i + 1).getShapeDistTraveledSinceLast();
+      reversed.add(new LiveStop(orig, newDist, newDistSinceLast));
+    }
+
+    liveStops.clear();
+    liveStops.addAll(reversed);
+    this.direction = GtfsUtil.getReverseDirection(direction);
+    this.stopHeading = newHeading;
   }
 }

@@ -2,6 +2,7 @@ package com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.selectors;
 
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
+import com.tarnvik.publicbackend.commuter.model.gtfs.ParentStopIdentifier;
 import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsLiveException;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.GroupKey;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveTrip;
@@ -10,13 +11,14 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.tarnvik.publicbackend.commuter.model.gtfs.ParentStopIdentifier.BALSTA;
+
 @Slf4j
 public class Train43 extends GtfsTripInfoSelector {
   private final static int STATION_COUNT = 28;
-  private final static String STATION_ID = "9021001006101000";
 
   public Train43() {
-    super(STATION_COUNT, STATION_ID);
+    super(STATION_COUNT, BALSTA);
   }
 
   public static GroupKey getGroupKey() {

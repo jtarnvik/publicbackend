@@ -2,6 +2,7 @@ package com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.selectors;
 
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
+import com.tarnvik.publicbackend.commuter.model.gtfs.ParentStopIdentifier;
 import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsLiveException;
 import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsNoFullTripException;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveTrip;
@@ -17,14 +18,14 @@ import java.util.Optional;
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class GtfsTripInfoSelector {
   private final int stationCount;
-  private final String stationId;
+  private final ParentStopIdentifier stopIdentifier;
 
   public abstract LiveTrip select(List<GtfsTripInfo> trips) throws GtfsLiveException;
 
   private boolean startsWith(GtfsTripInfo trip) {
     GtfsStopInfo firstStop = trip.getStopTimes().getFirst().getStop();
     Optional<GtfsStopInfo> safeParent = GtfsUtil.getSafeParent(firstStop);
-    return safeParent.isPresent() && safeParent.get().getStopId().equals(stationId);
+    return safeParent.isPresent() && safeParent.get().getStopId().equals(stopIdentifier.getId());
   }
 
   private boolean hasCorrectNumberOfStops(GtfsTripInfo trip) {

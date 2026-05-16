@@ -38,6 +38,15 @@ public class LiveStop implements GeoPosition {
     this.stopLon = parent.getStopLon();
   }
 
+  LiveStop(LiveStop source, Double shapeDistTraveled, Double shapeDistTraveledSinceLast) {
+    this.stopId = source.stopId;
+    this.stopName = source.stopName;
+    this.stopLat = source.stopLat;
+    this.stopLon = source.stopLon;
+    this.shapeDistTraveled = shapeDistTraveled;
+    this.shapeDistTraveledSinceLast = shapeDistTraveledSinceLast;
+  }
+
   @Override
   public double getLat() {
     return stopLat;
