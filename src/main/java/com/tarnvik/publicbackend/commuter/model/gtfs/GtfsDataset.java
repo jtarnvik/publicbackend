@@ -32,11 +32,13 @@ import java.util.stream.Collectors;
 public class GtfsDataset {
   @Getter
   private final List<GtfsMonitoredRoute> monitoredRoutes;
-  private final Map<String, GtfsRouteInfo> routeInfoById;             // key: route_id
-  private final Map<String, GtfsTripInfo> tripInfoById;               // key: trip_id
+  private final Map<String, GtfsRouteInfo> routeInfoById;                 // key: route_id
+  private final Map<String, GtfsTripInfo> tripInfoById;                   // key: trip_id
   private final Map<String, GtfsStopInfo> stopsById;                      // key: stop_id
   private final Map<String, List<GtfsStopTimeInfo>> stopTimesByTripId;    // key: trip_id, list sorted by stop_sequence
-  private final Map<LocalDate, Set<String>> activeServiceIdsByDate;   // key: service date, value: active service_ids
+  private final Map<LocalDate, Set<String>> activeServiceIdsByDate;       // key: service date, value: active service_ids
+
+  private final Map<GroupKey, LiveTrip> liveTrips;
 
   public GtfsDataset(
     List<GtfsMonitoredRoute> monitoredRoutes,
@@ -53,19 +55,16 @@ public class GtfsDataset {
     this.stopTimesByTripId = Collections.unmodifiableMap(stopTimesByTripId);
     this.activeServiceIdsByDate = Collections.unmodifiableMap(activeServiceIdsByDate);
 
-//    try {
-//      organizeRoutes();
-//    } catch (GtfsLiveException ex) {
-//      log.warn("Error while parsing GTFS dataset: " + ex.getMessage());
-//    }
+    this.liveTrips = new HashMap<>();
+    try {
+      this.liveTrips.putAll(organizeRoutes());
+    } catch (GtfsLiveException ex) {
+      log.warn("Error while building live trips: " + ex.getMessage(), ex);
+    }
   }
 
   private Map<GroupKey, LiveTrip> organizeRoutes() throws GtfsLiveException {
-//    Map<GroupKey, List<GtfsMonitoredRoute>> byGroup = monitoredRoutes.stream()
-//      .collect(Collectors.groupingBy(GtfsMonitoredRoute::getGroupKey));
-
     Map<GroupKey, List<GtfsTripInfo>> groupTrips = tripInfoById.values().stream()
-//      .filter(trip -> byGroup.containsKey(trip.getGroupKey()))
       .collect(Collectors.groupingBy(GtfsTripInfo::getGroupKey));
 
     Map<GroupKey, LiveTrip> result = new HashMap<>();
@@ -83,6 +82,10 @@ public class GtfsDataset {
 
   public boolean isEmpty() {
     return routeInfoById.isEmpty();
+  }
+
+  public boolean hasLiveSupport() {
+    return !liveTrips.isEmpty();
   }
 
   public Optional<GtfsTripInfo> findTripByTripId(String tripId) {

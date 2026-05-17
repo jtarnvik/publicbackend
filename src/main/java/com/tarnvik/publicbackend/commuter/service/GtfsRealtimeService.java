@@ -34,23 +34,20 @@ public class GtfsRealtimeService {
     this.gtfsAccessService = gtfsAccessService;
   }
 
-  @Data
-  @NoArgsConstructor
-  private static class GtfsTrafficData {
-    private GtfsVehiclePosition vp;
-    private GtfsTripInfo tripInfo;
-  }
-
   public RouteDataResponse getRouteData(TransportMode transportMode, int routeGroup, boolean focused) {
     try {
       final GtfsDataset dataset = gtfsAccessService.getDataset();
       List<GtfsVehiclePosition> gtfsVehiclePositions = samtrafikenProvider.fetchVehiclePositions();
       log.info("Total number of vehicles {}", gtfsVehiclePositions.size());
 
+      List<GtfsVehiclePosition> monitoredRouteVP = new ArrayList<>();
       gtfsVehiclePositions.forEach(vp -> {
-          Optional<GtfsTripInfo> tripByTripId = dataset.findTripByTripId(vp.getTripId(), transportMode, routeGroup);
+        Optional<GtfsTripInfo> tripByTripId = dataset.findTripByTripId(vp.getTripId(), transportMode, routeGroup);
+        if (tripByTripId.isPresent()) {
+          monitoredRouteVP.add(vp);
         }
-      );
+      });
+      log.info("Total number of monitored VP {}", monitoredRouteVP.size());
 
       return RouteDataResponse.builder().status("OK").build();
     } catch (Exception e) {
@@ -72,7 +69,6 @@ public class GtfsRealtimeService {
       log.info("Total number of vehicles {}", gtfsVehiclePositions.size());
 
       List<GtfsVehiclePosition> monitoredRouteVP = new ArrayList<>();
-
       gtfsVehiclePositions.forEach(vp -> {
         Optional<GtfsTripInfo> tripByTripId = dataset.findTripByTripId(vp.getTripId());
         if (tripByTripId.isPresent()) {

@@ -26,40 +26,9 @@ public class Bus112 extends GtfsTripInfoSelector {
 
   @Override
   public LiveTrip select(List<GtfsTripInfo> trips) throws GtfsLiveException {
-//    boolean f20 = false;
-//    boolean f23 = false;
-//
-//    for (GtfsTripInfo t : trips) {
-//      if (t.getStopTimes().size() == 20 && !f20){
-//        f20 = true;
-//        log.info("F20 -- ");
-//        t.getStopTimes().forEach(sti -> {
-//          try {
-//            log.info("Stop: "+sti.getStop().getParent().getStopName());
-//          } catch (GtfsNoParentForStopException e) {
-//            throw new RuntimeException(e);
-//          }
-//        });
-//      }
-//      if (t.getStopTimes().size() == 23 && !f23){
-//        f23 = true;
-//        log.info("F23 -- ");
-//        List<GtfsStopTimeInfo> stopTimes = new ArrayList<>(t.getStopTimes());
-//        Collections.reverse(stopTimes);
-//        stopTimes.stream().forEach(sti -> {
-//          try {
-//            log.info("Stop: "+sti.getStop().getParent().getStopName());
-//          } catch (GtfsNoParentForStopException e) {
-//            throw new RuntimeException(e);
-//          }
-//        });
-//      }
-//    }
     GtfsTripInfo idTrip = findIdTrip(trips);
     LiveTrip liveTrip = new LiveTrip(idTrip, new ArrayList<>());
     liveTrip.reverseTrip();
-//    Flest hållplaster, men den behöver vändas på
-
     return liveTrip;
   }
 }
