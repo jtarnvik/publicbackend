@@ -12,22 +12,15 @@ import lombok.ToString;
 
 @Data
 @ToString(onlyExplicitlyIncluded = true)
-public class LiveStop implements GeoPosition {
+public class LiveForkStop implements GeoPosition {
   @ToString.Include
   private final String stopId;
   @ToString.Include
   private final String stopName;
-  @ToString.Include
-  private final Double shapeDistTraveled;
-  @ToString.Include
-  private final Double shapeDistTraveledSinceLast;
   private final double stopLat;
   private final double stopLon;
 
-  public LiveStop(GtfsStopTimeInfo sti, Double distSoFar) throws GtfsLiveException {
-    this.shapeDistTraveled = sti.getShapeDistTraveled();
-    this.shapeDistTraveledSinceLast = sti.getShapeDistTraveled() - distSoFar;
-
+  public LiveForkStop(GtfsStopTimeInfo sti) throws GtfsLiveException {
     GtfsStopInfo posSrc = sti.getStop();
     if (posSrc == null) {
       throw new GtfsNoStopInfoException();
@@ -42,13 +35,11 @@ public class LiveStop implements GeoPosition {
     this.stopLon = parent.getStopLon();
   }
 
-  LiveStop(LiveStop source, Double shapeDistTraveled, Double shapeDistTraveledSinceLast) {
+  LiveForkStop(LiveForkStop source) {
     this.stopId = source.stopId;
     this.stopName = source.stopName;
     this.stopLat = source.stopLat;
     this.stopLon = source.stopLon;
-    this.shapeDistTraveled = shapeDistTraveled;
-    this.shapeDistTraveledSinceLast = shapeDistTraveledSinceLast;
   }
 
   @Override

@@ -1,22 +1,28 @@
 package com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.selectors;
 
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopInfo;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.ParentStopIdentifier;
 import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsLiveException;
 import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsNoFullTripException;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveForkStop;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveTrip;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.util.GtfsUtil;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.variations.RouteForkVariant;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 @Slf4j
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class GtfsTripInfoSelector {
+  public record ForkPart(ParentStopIdentifier start, ParentStopIdentifier end, int length) {}
+
   private final int stationCount;
   private final ParentStopIdentifier stopIdentifier;
 
@@ -52,5 +58,31 @@ public abstract class GtfsTripInfoSelector {
       throw new GtfsNoFullTripException();
     }
     return idTrip;
+  }
+
+  protected RouteForkVariant getRouteForkVariant(List<GtfsTripInfo> trips, ForkPart forkPart) throws GtfsLiveException {
+    for (GtfsTripInfo trip : trips) {
+      List<GtfsStopTimeInfo> stopTimes = trip.getStopTimes();
+      for (int i = 0; i < stopTimes.size(); i++) {
+        Optional<GtfsStopInfo> startParent = GtfsUtil.getSafeParent(stopTimes.get(i).getStop());
+        if (startParent.isEmpty() || !startParent.get().getStopId().equals(forkPart.start().getId())) {
+          continue;
+        }
+        int endIdx = i + forkPart.length() - 1;
+        if (endIdx >= stopTimes.size()) {
+          continue;
+        }
+        Optional<GtfsStopInfo> endParent = GtfsUtil.getSafeParent(stopTimes.get(endIdx).getStop());
+        if (endParent.isEmpty() || !endParent.get().getStopId().equals(forkPart.end().getId())) {
+          continue;
+        }
+        List<LiveForkStop> forkStops = new ArrayList<>();
+        for (int j = i; j <= endIdx; j++) {
+          forkStops.add(new LiveForkStop(stopTimes.get(j)));
+        }
+        return new RouteForkVariant(forkStops);
+      }
+    }
+    throw new GtfsNoFullTripException();
   }
 }
