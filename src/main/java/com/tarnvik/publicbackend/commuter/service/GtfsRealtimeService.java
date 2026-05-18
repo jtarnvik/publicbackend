@@ -11,8 +11,6 @@ import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.RouteDataRespon
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.samtrafiken.SamtrafikenProvider;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil.VehicleLocation;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +26,7 @@ import java.util.stream.Collectors;
 public class GtfsRealtimeService {
   private final SamtrafikenProvider samtrafikenProvider;
   private final GtfsAccessService gtfsAccessService; // will be used when POC expands
+  private final GtfsRealtimeCache gtfsCache = new GtfsRealtimeCache();
 
   public GtfsRealtimeService(SamtrafikenProvider samtrafikenProvider, GtfsAccessService gtfsAccessService) {
     this.samtrafikenProvider = samtrafikenProvider;
@@ -60,28 +59,13 @@ public class GtfsRealtimeService {
 
   public void poc() {
     try {
-      final GtfsDataset dataset = gtfsAccessService.getDataset();
-      if (dataset.isEmpty()) {
-        log.info("No static data, try again later!");
+      Optional<Map<GtfsRouteInfo, List<GtfsVehiclePosition>>> direct = gtfsCache.getDirect();
+      if (direct.isEmpty()) {
+        log.info("No static data, try again tomorrow.");
         return;
       }
-      List<GtfsVehiclePosition> gtfsVehiclePositions = samtrafikenProvider.fetchVehiclePositions();
-      log.info("Total number of vehicles {}", gtfsVehiclePositions.size());
-
-      List<GtfsVehiclePosition> monitoredRouteVP = new ArrayList<>();
-      gtfsVehiclePositions.forEach(vp -> {
-        Optional<GtfsTripInfo> tripByTripId = dataset.findTripByTripId(vp.getTripId());
-        if (tripByTripId.isPresent()) {
-          monitoredRouteVP.add(vp);
-        }
-      });
-      log.info("Total number of monitored line VP {}", monitoredRouteVP.size());
-
-      Map<GtfsRouteInfo, List<GtfsVehiclePosition>> vpByRoute = new HashMap<>();
-      monitoredRouteVP.forEach(vp -> {
-        GtfsTripInfo gtfsTripInfo = dataset.findTripByTripId(vp.getTripId()).orElseThrow();
-        vpByRoute.computeIfAbsent(gtfsTripInfo.getRouteInfo(), routeInfo -> new ArrayList<>()).add(vp);
-      });
+      Map<GtfsRouteInfo, List<GtfsVehiclePosition>> vpByRoute = direct.get();
+      final GtfsDataset dataset = gtfsAccessService.getDataset();
 
       vpByRoute.entrySet().stream()
         .sorted(Map.Entry.comparingByKey(java.util.Comparator.comparing(GtfsRouteInfo::getRouteShortName)))
@@ -127,6 +111,45 @@ public class GtfsRealtimeService {
       });
     } catch (Exception e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  private class GtfsRealtimeCache {
+    public Optional<Map<GtfsRouteInfo, List<GtfsVehiclePosition>>> getContinously() {
+      // Fetch data
+      // Start loop to fetch data every X sec (make a testrun and see the normal access time)
+      // The loop should run for 5 min, during the loop any requests should return the last value, so return at immediatly.
+      throw new RuntimeException("Not implemented");
+    }
+
+    public Optional<Map<GtfsRouteInfo, List<GtfsVehiclePosition>>> getDirect() {
+      try {
+        final GtfsDataset dataset = gtfsAccessService.getDataset();
+        if (dataset.isEmpty()) {
+          log.info("No static data, try again later!");
+          return Optional.empty();
+        }
+        List<GtfsVehiclePosition> gtfsVehiclePositions = samtrafikenProvider.fetchVehiclePositions();
+        log.info("Total number of vehicles {}", gtfsVehiclePositions.size());
+
+        List<GtfsVehiclePosition> monitoredRouteVP = new ArrayList<>();
+        gtfsVehiclePositions.forEach(vp -> {
+          Optional<GtfsTripInfo> tripByTripId = dataset.findTripByTripId(vp.getTripId());
+          if (tripByTripId.isPresent()) {
+            monitoredRouteVP.add(vp);
+          }
+        });
+        log.info("Total number of monitored line VP {}", monitoredRouteVP.size());
+
+        Map<GtfsRouteInfo, List<GtfsVehiclePosition>> vpByRoute = new HashMap<>();
+        monitoredRouteVP.forEach(vp -> {
+          GtfsTripInfo gtfsTripInfo = dataset.findTripByTripId(vp.getTripId()).orElseThrow();
+          vpByRoute.computeIfAbsent(gtfsTripInfo.getRouteInfo(), routeInfo -> new ArrayList<>()).add(vp);
+        });
+        return Optional.of(vpByRoute);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 }
