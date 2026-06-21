@@ -2,7 +2,6 @@ package com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.selectors;
 
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
-import com.tarnvik.publicbackend.commuter.model.gtfs.ParentStopIdentifier;
 import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsLiveException;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.GroupKey;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveTrip;

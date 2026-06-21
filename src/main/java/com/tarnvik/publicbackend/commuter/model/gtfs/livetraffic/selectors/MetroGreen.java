@@ -3,10 +3,8 @@ package com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.selectors;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsLiveException;
-import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsNoFullTripException;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.GroupKey;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveTrip;
-import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.variations.RouteForkVariant;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.variations.RouteVariant;
 import lombok.extern.slf4j.Slf4j;
 
