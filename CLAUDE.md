@@ -222,6 +222,7 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 | POST | `/api/auth/logout` | Optional | Clears session and cookie |
 | GET | `/api/protected/gtfs/route-groups` | User | List selectable monitored route groups (transportMode, routeGroup, displayName) |
 | GET | `/api/protected/gtfs/status` | User | GTFS data availability: `date`, `status` (enum name), `staticDataAvailable` (derived from in-memory dataset) |
+| GET | `/api/protected/gtfs/route-data` | User | Live data for one route group. Params: `transportMode`, `routeGroup`, `focused`. Returns `RouteDataResponse` — currently a `status` string only (C2 stub) |
 | PUT | `/api/protected/settings` | User | Save stop point settings |
 | DELETE | `/api/protected/account` | User | Delete own account (cascade removes all data, invalidates session). Returns 409 if last admin. |
 | POST | `/api/protected/deviations/interpret` | User | Interpret a list of deviation texts via Claude AI |
@@ -235,6 +236,10 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 | GET | `/api/admin/users` | Admin | List allowed users |
 | DELETE | `/api/admin/users/{id}` | Admin | Delete an allowed user |
 | GET | `/api/admin/statistics` | Admin | Usage statistics (`routesShared`, `aiInterpretationQueries`, `userCount`) |
+| GET | `/api/admin/gtfs/status` | Admin | Most recent `gtfs_download_log` entry (phase timestamps, error message) |
+| POST | `/api/admin/gtfs/run-pipeline` | Admin | Run the GTFS pipeline manually |
+| POST | `/api/admin/gtfs/reset` | Admin | Reset the most recent entry to `DOWNLOAD_DONE` and clear the GTFS tables. 409 while a download is in flight |
+| POST | `/api/admin/gtfs/realtime-poc` | Admin | Trigger `GtfsRealtimeService.poc()` — logs live line 117 vehicles and their located positions. Temporary |
 | GET | `/api/public/routes/{id}` | Public | Fetch a shared route by ID; returns `{ routeData }` (serialized Journey JSON) |
 
 ---
@@ -557,3 +562,22 @@ notification via `PushoverProvider.sendGtfsPipelineErrorNotification(phase, mess
 43/44 (TRAIN), 112/117 (BUS), 17/18/19 (METRO). Variant matching (e.g. 43X) is a uniform regex rule in
 `GtfsNameUtil`, not a per-row flag. 112 exists to exercise route presentation logic — not shown in the
 deviation pane. `@Profile("!test")` prevents the job from running in integration tests.
+
+### Service responsibilities
+
+Five services, deliberately split by phase so each has one reason to change.
+
+| Service | Owns |
+|---|---|
+| `GtfsPipelineService` | Orchestration only: `recover → download → unzip → parse → rebuildDataset`. Plus `resetToDownloadDone()` (clears the 5 GTFS tables + unzip dir in one transaction). No logic of its own. |
+| `GtfsDownloadService` | `/tmp/sl-gtfs-cache` and the zip. Download (once per date), unzip, crash recovery from a stuck `PARSE_START`. |
+| `GtfsParseService` | CSV → DB. Filters the feed to monitored routes and writes the 5 GTFS tables. Owns the batching and `entityManager` lifecycle (class Javadoc). |
+| `GtfsAccessService` | DB → memory. Holds the `AtomicReference<GtfsDataset>` and serves the read endpoints (`route-groups`, `status`). Never touches files. |
+| `GtfsRealtimeService` | The live side: RT positions joined to the static dataset by `trip_id`. WIP — see the C-block in the frontend `CLAUDE.md`. |
+
+Two stateless utils sit alongside: `GtfsNameUtil` (line-name/variant matching, shared by parse and access)
+and `GtfsGeometryUtil` (`locateOnRoute()` — projection + Haversine, no Spring dependency).
+
+**Read direction:** static data flows one way — file → DB → `GtfsDataset` — and only `GtfsAccessService`
+crosses the DB→memory boundary. Everything serving a request reads from the in-memory dataset, never the
+GTFS tables. Keep it that way; it is what makes the nightly rebuild atomic from a caller's point of view.
