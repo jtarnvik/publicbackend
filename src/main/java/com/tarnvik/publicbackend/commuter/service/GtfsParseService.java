@@ -30,9 +30,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.BufferedReader;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -350,8 +354,13 @@ public class GtfsParseService {
 
     List<GtfsStopTime> batch = new ArrayList<>();
     int totalCount = 0;
+    // The number of retained rows says nothing about remaining work — stop_times.txt is ~140MB and the
+    // rows we keep are a small, unevenly distributed subset. Bytes read out of the file size is the only
+    // cheap measure of progress. Counting lines up front would mean a second full pass over the file.
+    long fileSize = Files.size(stopTimesFile);
 
-    try (BufferedReader reader = Files.newBufferedReader(stopTimesFile)) {
+    CountingInputStream countingStream = new CountingInputStream(Files.newInputStream(stopTimesFile));
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(countingStream, StandardCharsets.UTF_8))) {
       String headerLine = reader.readLine();
       if (headerLine == null) {
         throw new GtfsDownloadException("stop_times.txt is empty", null);
@@ -398,7 +407,8 @@ public class GtfsParseService {
           totalCount += batch.size();
           batch.clear();
           if (totalCount % 10_000 == 0) {
-            log.info("OOM: stop_times — {} rows written", totalCount);
+            log.info("OOM: stop_times — {} rows written, {}% of file read",
+              totalCount, percentRead(countingStream.getBytesRead(), fileSize));
             logMemory("stop_times-" + totalCount);
           }
         }
@@ -566,6 +576,13 @@ public class GtfsParseService {
     return retained.size();
   }
 
+  private int percentRead(long bytesRead, long fileSize) {
+    if (fileSize <= 0) {
+      return -1;
+    }
+    return (int) Math.min(100, bytesRead * 100 / fileSize);
+  }
+
   private void logMemory(String label) {
     MemoryUsage heap = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();
     MemoryUsage nonHeap = ManagementFactory.getMemoryMXBean().getNonHeapMemoryUsage();
@@ -628,5 +645,40 @@ public class GtfsParseService {
     }
     fields.add(current.toString());
     return fields.toArray(new String[0]);
+  }
+
+  /**
+   * Wraps an input stream and keeps a running count of the bytes read from it. Used to report parse
+   * progress through stop_times.txt as a percentage of the file size. Because the reader buffers,
+   * the count runs slightly ahead of what has actually been parsed — irrelevant at 140MB.
+   */
+  private static final class CountingInputStream extends FilterInputStream {
+    private long bytesRead;
+
+    private CountingInputStream(InputStream in) {
+      super(in);
+    }
+
+    @Override
+    public int read() throws IOException {
+      int value = super.read();
+      if (value != -1) {
+        bytesRead++;
+      }
+      return value;
+    }
+
+    @Override
+    public int read(byte[] buffer, int offset, int length) throws IOException {
+      int count = super.read(buffer, offset, length);
+      if (count != -1) {
+        bytesRead += count;
+      }
+      return count;
+    }
+
+    private long getBytesRead() {
+      return bytesRead;
+    }
   }
 }
