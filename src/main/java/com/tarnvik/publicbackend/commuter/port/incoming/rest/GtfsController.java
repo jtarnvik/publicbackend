@@ -1,9 +1,11 @@
 package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.RouteData;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsDataStatusResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.MonitoredRouteGroupResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.RouteDataResponse;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.mapper.RouteDataMapper;
 import com.tarnvik.publicbackend.commuter.service.GtfsAccessService;
 import com.tarnvik.publicbackend.commuter.service.GtfsRealtimeService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ import java.util.List;
 public class GtfsController {
   private final GtfsAccessService gtfsAccessService;
   private final GtfsRealtimeService gtfsRealtimeService;
+  private final RouteDataMapper routeDataMapper;
 
   @GetMapping("/route-groups")
   public ResponseEntity<List<MonitoredRouteGroupResponse>> getRouteGroups() {
@@ -37,6 +40,7 @@ public class GtfsController {
       @RequestParam TransportMode transportMode,
       @RequestParam int routeGroup,
       @RequestParam boolean focused) {
-    return ResponseEntity.ok(gtfsRealtimeService.getRouteData(transportMode, routeGroup, focused));
+    RouteData routeData = gtfsRealtimeService.getRouteData(transportMode, routeGroup, focused);
+    return ResponseEntity.ok(routeDataMapper.toResponse(routeData));
   }
 }

@@ -3,6 +3,7 @@ package com.tarnvik.publicbackend.commuter.model.gtfs;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsLiveException;
+import com.tarnvik.publicbackend.commuter.model.gtfs.exception.GtfsNoRegisteredSelectorForGroupKeyException;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.GroupKey;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveTrip;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.selectors.GtfsTripInfoSelector;
@@ -111,28 +112,44 @@ public class GtfsDataset {
     this.stopTimesByTripId = Collections.unmodifiableMap(stopTimesByTripId);
     this.activeServiceIdsByDate = Collections.unmodifiableMap(activeServiceIdsByDate);
 
-    this.liveTrips = new HashMap<>();
-    try {
-      this.liveTrips.putAll(organizeRoutes());
-    } catch (GtfsLiveException ex) {
-      log.warn("Error while building live trips: " + ex.getMessage(), ex);
-    }
+    this.liveTrips = Collections.unmodifiableMap(organizeRoutes());
   }
 
-  private Map<GroupKey, LiveTrip> organizeRoutes() throws GtfsLiveException {
+  /**
+   * Builds the canonical stop chain for every route group present in the trip data.
+   * <p>
+   * Each group is built independently and a failure costs only that group: the rest of the dataset, and the
+   * other groups' chains, survive. This matters because the whole dataset is rebuilt from here — letting one
+   * misconfigured line abort the build would take live traffic down for every line, and an unchecked
+   * {@link GtfsNoRegisteredSelectorForGroupKeyException} escaping the constructor would take down the
+   * dataset itself.
+   * <p>
+   * Both failures are configuration problems rather than data gaps, so they are logged as errors loud enough
+   * to notice locally when a monitored line is added. Nothing else surfaces them until someone requests that
+   * group's route data.
+   */
+  private Map<GroupKey, LiveTrip> organizeRoutes() {
     Map<GroupKey, List<GtfsTripInfo>> groupTrips = tripInfoById.values().stream()
       .collect(Collectors.groupingBy(GtfsTripInfo::getGroupKey));
 
     Map<GroupKey, LiveTrip> result = new HashMap<>();
     for (Map.Entry<GroupKey, List<GtfsTripInfo>> entry : groupTrips.entrySet()) {
       GroupKey groupKey = entry.getKey();
-      List<GtfsTripInfo> trips = entry.getValue();
-
-      GtfsTripInfoSelector selector = GtfsTripInfoSelectorFactory.findMatching(groupKey);
-      LiveTrip liveTrip = selector.select(trips);
-      result.put(groupKey, liveTrip);
+      try {
+        GtfsTripInfoSelector selector = GtfsTripInfoSelectorFactory.findMatching(groupKey);
+        result.put(groupKey, selector.select(entry.getValue()));
+      } catch (GtfsNoRegisteredSelectorForGroupKeyException ex) {
+        log.error("!!! NO SELECTOR REGISTERED FOR {} !!! Live traffic is unavailable for this group. "
+          + "Add a GtfsTripInfoSelector subclass for it and register it in GtfsTripInfoSelectorFactory.",
+          groupKey);
+      } catch (GtfsLiveException ex) {
+        log.error("!!! COULD NOT BUILD LIVE TRIP FOR {} !!! Live traffic is unavailable for this group. "
+          + "The selector found no id trip — check its expected station count and start terminus against "
+          + "the current timetable.", groupKey, ex);
+      }
     }
 
+    log.info("Live trips built for {} of {} route groups", result.size(), groupTrips.size());
     return result;
   }
 
@@ -161,5 +178,13 @@ public class GtfsDataset {
 
   public Optional<GtfsStopInfo> getStopByStopId(String stopId) {
     return Optional.ofNullable(stopsById.get(stopId));
+  }
+
+  /**
+   * The canonical stop chain for a route group — the one every vehicle on that group is placed against.
+   * Empty only when the group's selector could not find its id trip, which is a configuration problem.
+   */
+  public Optional<LiveTrip> findLiveTrip(GroupKey groupKey) {
+    return Optional.ofNullable(liveTrips.get(groupKey));
   }
 }

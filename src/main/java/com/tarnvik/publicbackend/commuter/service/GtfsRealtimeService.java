@@ -1,5 +1,6 @@
 package com.tarnvik.publicbackend.commuter.service;
 
+import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsDataset;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRouteInfo;
@@ -7,7 +8,10 @@ import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsVehiclePosition;
-import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.RouteDataResponse;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.GroupKey;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveTrip;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveVehicle;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.RouteData;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.samtrafiken.SamtrafikenProvider;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil.VehicleLocation;
@@ -27,8 +31,12 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class GtfsRealtimeService {
+  private static final String STATUS_OK = "OK";
+  private static final String STATUS_NO_STATIC_DATA = "No static data";
+  private static final String STATUS_NO_LIVE_TRIP = "No live trip for group";
+
   private final SamtrafikenProvider samtrafikenProvider;
-  private final GtfsAccessService gtfsAccessService; // will be used when POC expands
+  private final GtfsAccessService gtfsAccessService;
   private final GtfsRealtimeCache gtfsCache = new GtfsRealtimeCache();
 
   public GtfsRealtimeService(SamtrafikenProvider samtrafikenProvider, GtfsAccessService gtfsAccessService) {
@@ -36,25 +44,69 @@ public class GtfsRealtimeService {
     this.gtfsAccessService = gtfsAccessService;
   }
 
-  public RouteDataResponse getRouteData(TransportMode transportMode, int routeGroup, boolean focused) {
+  /**
+   * The live picture of one route group: every vehicle currently running on it, placed on its route.
+   * <p>
+   * The {@code focused} flag is accepted but not yet acted on — focus window filtering waits until the
+   * schematic knows what to do with it.
+   */
+  public RouteData getRouteData(TransportMode transportMode, int routeGroup, boolean focused) {
     try {
       final GtfsDataset dataset = gtfsAccessService.getDataset();
-      List<GtfsVehiclePosition> gtfsVehiclePositions = samtrafikenProvider.fetchVehiclePositions();
-      log.info("Total number of vehicles {}", gtfsVehiclePositions.size());
+      GroupKey groupKey = new GroupKey(transportMode, routeGroup);
+      Optional<LiveTrip> maybeLiveTrip = dataset.findLiveTrip(groupKey);
+      if (maybeLiveTrip.isEmpty() || maybeLiveTrip.get().getLiveStops().size() < 2) {
+        log.error("!!! NO USABLE LIVE TRIP FOR {} !!! Every monitored group must have one — this is a "
+          + "configuration failure, not a data gap. Check the selector registered for this group and the "
+          + "id trip it looks for (station count and start terminus), and the dataset build log.", groupKey);
+        return new RouteData(STATUS_NO_LIVE_TRIP, null, List.of());
+      }
+      LiveTrip liveTrip = maybeLiveTrip.get();
 
-      List<GtfsVehiclePosition> monitoredRouteVP = new ArrayList<>();
-      gtfsVehiclePositions.forEach(vp -> {
-        Optional<GtfsTripInfo> tripByTripId = dataset.findTripByTripId(vp.getTripId(), transportMode, routeGroup);
-        if (tripByTripId.isPresent()) {
-          monitoredRouteVP.add(vp);
+      Optional<Map<GtfsRouteInfo, List<GtfsVehiclePosition>>> cached = gtfsCache.getContinously();
+      if (cached.isEmpty()) {
+        return new RouteData(STATUS_NO_STATIC_DATA, null, List.of());
+      }
+
+      List<LiveVehicle> vehicles = new ArrayList<>();
+      for (Map.Entry<GtfsRouteInfo, List<GtfsVehiclePosition>> entry : cached.get().entrySet()) {
+        if (!matchesGroup(entry.getKey(), transportMode, routeGroup)) {
+          continue;
         }
-      });
-      log.info("Total number of monitored VP {}", monitoredRouteVP.size());
+        for (GtfsVehiclePosition vp : entry.getValue()) {
+          locate(dataset, liveTrip, vp).ifPresent(vehicles::add);
+        }
+      }
 
-      return RouteDataResponse.builder().status("OK").build();
+      log.info("Route data for {}/{}: {} vehicles on a {} stop chain",
+        transportMode, routeGroup, vehicles.size(), liveTrip.getLiveStops().size());
+      return new RouteData(STATUS_OK, liveTrip, vehicles);
     } catch (Exception e) {
-      return RouteDataResponse.builder().status("Failure: " + e.getMessage()).build();
+      log.warn("Route data for {}/{} failed: {}", transportMode, routeGroup, e.getMessage(), e);
+      return new RouteData("Failure: " + e.getMessage(), null, List.of());
     }
+  }
+
+  private boolean matchesGroup(GtfsRouteInfo routeInfo, TransportMode transportMode, int routeGroup) {
+    GtfsMonitoredRoute monitoredRoute = routeInfo.getMonitoredRoute();
+    return monitoredRoute.getTransportMode() == transportMode && monitoredRoute.getRouteGroup() == routeGroup;
+  }
+
+  /**
+   * Places a vehicle on the stop chain of the trip it is running. Empty when the trip is unknown, or when it
+   * has fewer than two stops — a single stop has no segment to project onto.
+   */
+  private Optional<LiveVehicle> locate(GtfsDataset dataset, LiveTrip liveTrip, GtfsVehiclePosition vp) {
+    Optional<GtfsTripInfo> maybeTrip = dataset.findTripByTripId(vp.getTripId());
+    if (maybeTrip.isEmpty()) {
+      return Optional.empty();
+    }
+    VehicleLocation location = GtfsGeometryUtil.locateOnRoute(liveTrip.getLiveStops(), vp);
+    return Optional.of(LiveVehicle.builder()
+      .position(vp)
+      .location(location)
+      .trip(maybeTrip.get())
+      .build());
   }
 
   public void poc() {
