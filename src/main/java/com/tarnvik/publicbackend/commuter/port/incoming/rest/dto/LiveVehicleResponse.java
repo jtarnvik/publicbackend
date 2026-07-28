@@ -19,6 +19,8 @@ import lombok.Value;
 public class LiveVehicleResponse {
   String vehicleId;
   String tripId;
+  /** Where this vehicle terminates — its own trip's destination, not the end of the chain. */
+  String destination;
   double lat;
   double lng;
   float bearing;
