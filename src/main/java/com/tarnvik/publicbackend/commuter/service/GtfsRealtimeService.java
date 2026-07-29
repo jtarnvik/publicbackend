@@ -93,7 +93,8 @@ public class GtfsRealtimeService {
       }
 
       if (range == null) {
-        log.info("Route data for {}: {} vehicles on the full {} stop chain",
+        // Trace: one line per client poll, so more frequent than the poll cycle lines above.
+        log.trace("Route data for {}: {} vehicles on the full {} stop chain",
           groupKey, located.size(), fullTrip.getLiveStops().size());
         return RouteData.builder().status(STATUS_OK).liveTrip(fullTrip).vehicles(located).build();
       }
@@ -188,7 +189,8 @@ public class GtfsRealtimeService {
       .approachingAtEnd(approachingAtEnd)
       .build();
 
-    log.info("Route data for {} focused to stops {}-{} of {}: {} vehicles inside, {} approaching at start, "
+    // Trace: one line per client poll. This is where to look first when the focus crop looks wrong.
+    log.trace("Route data for {} focused to stops {}-{} of {}: {} vehicles inside, {} approaching at start, "
         + "{} approaching at end",
       groupKey, range.startIdx(), range.endIdx(), fullStops.size(), inside.size(),
       approachingAtStart, approachingAtEnd);
@@ -319,7 +321,8 @@ public class GtfsRealtimeService {
           } catch (Exception e) {
             log.warn("GTFS-RT poll cycle {} failed — keeping previous value: {}", cycle, e.getMessage());
           }
-          log.info("GTFS-RT poll cycle {} — cycle={}ms, sincePreviousCycle={}ms, windowRemaining={}s",
+          // Trace: one line per cycle. sincePreviousCycle is how the real interval drift was measured.
+          log.trace("GTFS-RT poll cycle {} — cycle={}ms, sincePreviousCycle={}ms, windowRemaining={}s",
             cycle,
             System.currentTimeMillis() - cycleStart,
             sincePreviousCycle,
@@ -362,7 +365,9 @@ public class GtfsRealtimeService {
         }
         long joinMs = System.currentTimeMillis() - joinStart;
 
-        log.info("GTFS-RT direct — {} vehicles in feed, {} on monitored lines, {} routes; fetch={}ms, join={}ms, total={}ms",
+        // Trace: one line per poll cycle. Kept because it is the only place the fetch/join split is
+        // measured — raise it to info when the timings need looking at again.
+        log.trace("GTFS-RT direct — {} vehicles in feed, {} on monitored lines, {} routes; fetch={}ms, join={}ms, total={}ms",
           gtfsVehiclePositions.size(), monitoredCount, vpByRoute.size(), fetchMs, joinMs, fetchMs + joinMs);
         return Optional.of(vpByRoute);
       } catch (Exception e) {

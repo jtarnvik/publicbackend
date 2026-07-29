@@ -81,7 +81,8 @@ public class SamtrafikenProvider {
       }
     }
 
-    log.info("GTFS-RT feed: {} total entities, {} with vehicle positions", totalEntities, positions.size());
+    // Trace: one line per poll cycle, so info would swamp the log while anyone has the live view open.
+    log.trace("GTFS-RT feed: {} total entities, {} with vehicle positions", totalEntities, positions.size());
     return positions;
   }
 
