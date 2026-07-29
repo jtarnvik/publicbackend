@@ -187,4 +187,15 @@ public class GtfsDataset {
   public Optional<LiveTrip> findLiveTrip(GroupKey groupKey) {
     return Optional.ofNullable(liveTrips.get(groupKey));
   }
+
+  /**
+   * Any one monitored route from the group, for reading the group's configuration (focus window,
+   * {@code onlyFocused}). Which row is returned does not matter — startup validation guarantees every row in
+   * a group carries identical focus config.
+   */
+  public Optional<GtfsMonitoredRoute> findMonitoredRoute(GroupKey groupKey) {
+    return monitoredRoutes.stream()
+      .filter(route -> route.getGroupKey().equals(groupKey))
+      .findFirst();
+  }
 }

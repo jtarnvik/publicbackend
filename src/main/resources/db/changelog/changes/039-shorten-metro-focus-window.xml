@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <!--
+      Shortens the green line focus window: focus_end moves from Gullmarsplan (changeset 037) to
+      Medborgarplatsen. Åkeshov to Gullmarsplan was still more stations than fit comfortably on screen.
+
+      The fork safety from 037 is unaffected — Medborgarplatsen is two stations before Gullmarsplan, where
+      17, 18 and 19 diverge, so the window remains entirely on track all three lines share.
+
+      Trade-off: trains between Medborgarplatsen and Gullmarsplan are now outside the window and appear only
+      in the approaching count at the truncation marker rather than being drawn.
+    -->
+    <changeSet id="039-1" author="jesper">
+        <update tableName="gtfs_monitored_route">
+            <column name="focus_end" value="9021001001511000"/>
+            <where>transport_mode = 'METRO'</where>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>

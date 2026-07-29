@@ -43,5 +43,6 @@
     <include file="db/changelog/changes/036-set-train-focus-window.xml"/>
     <include file="db/changelog/changes/037-set-metro-focus-window.xml"/>
     <include file="db/changelog/changes/038-set-metro-only-focused.xml"/>
+    <include file="db/changelog/changes/039-shorten-metro-focus-window.xml"/>
 
 </databaseChangeLog>

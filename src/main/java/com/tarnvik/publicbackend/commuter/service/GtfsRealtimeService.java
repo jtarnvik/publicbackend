@@ -9,9 +9,11 @@ import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsVehiclePosition;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.GroupKey;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveStop;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveTrip;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveVehicle;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.RouteData;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.RouteFocus;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.samtrafiken.SamtrafikenProvider;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil.VehicleLocation;
@@ -34,6 +36,7 @@ public class GtfsRealtimeService {
   private static final String STATUS_OK = "OK";
   private static final String STATUS_NO_STATIC_DATA = "No static data";
   private static final String STATUS_NO_LIVE_TRIP = "No live trip for group";
+  private static final String STATUS_FOCUS_WINDOW_NOT_FOUND = "Focus window not found in chain";
 
   private final SamtrafikenProvider samtrafikenProvider;
   private final GtfsAccessService gtfsAccessService;
@@ -44,11 +47,16 @@ public class GtfsRealtimeService {
     this.gtfsAccessService = gtfsAccessService;
   }
 
+  /** The stretch of the canonical chain a focused view shows, as indices into that chain. Both inclusive. */
+  private record FocusRange(int startIdx, int endIdx) {}
+
   /**
    * The live picture of one route group: every vehicle currently running on it, placed on its route.
    * <p>
-   * The {@code focused} flag is accepted but not yet acted on — focus window filtering waits until the
-   * schematic knows what to do with it.
+   * Vehicles are always located against the group's <em>full</em> chain — cropping is applied afterwards, so
+   * the geometry never depends on which view was asked for. When focused, the chain sent back is a cropped
+   * copy and vehicle indices are rebased onto it, leaving the frontend with a self-contained picture where
+   * {@code segIdx} indexes exactly what it was given.
    */
   public RouteData getRouteData(TransportMode transportMode, int routeGroup, boolean focused) {
     try {
@@ -59,32 +67,150 @@ public class GtfsRealtimeService {
         log.error("!!! NO USABLE LIVE TRIP FOR {} !!! Every monitored group must have one — this is a "
           + "configuration failure, not a data gap. Check the selector registered for this group and the "
           + "id trip it looks for (station count and start terminus), and the dataset build log.", groupKey);
-        return new RouteData(STATUS_NO_LIVE_TRIP, null, List.of());
+        return RouteData.builder().status(STATUS_NO_LIVE_TRIP).vehicles(List.of()).build();
       }
-      LiveTrip liveTrip = maybeLiveTrip.get();
+      LiveTrip fullTrip = maybeLiveTrip.get();
+      GtfsMonitoredRoute monitoredRoute = dataset.findMonitoredRoute(groupKey).orElse(null);
+
+      FocusRange range = null;
+      if (isFocusedView(focused, monitoredRoute) && hasFocusWindow(monitoredRoute)) {
+        range = resolveFocusRange(fullTrip, monitoredRoute, groupKey);
+        if (range == null) {
+          return RouteData.builder().status(STATUS_FOCUS_WINDOW_NOT_FOUND).vehicles(List.of()).build();
+        }
+      }
 
       Optional<Map<GtfsRouteInfo, List<GtfsVehiclePosition>>> cached = gtfsCache.getContinously();
       if (cached.isEmpty()) {
-        return new RouteData(STATUS_NO_STATIC_DATA, null, List.of());
+        return RouteData.builder().status(STATUS_NO_STATIC_DATA).vehicles(List.of()).build();
       }
 
-      List<LiveVehicle> vehicles = new ArrayList<>();
+      List<LiveVehicle> located = new ArrayList<>();
       for (Map.Entry<GtfsRouteInfo, List<GtfsVehiclePosition>> entry : cached.get().entrySet()) {
         if (!matchesGroup(entry.getKey(), transportMode, routeGroup)) {
           continue;
         }
         for (GtfsVehiclePosition vp : entry.getValue()) {
-          locate(dataset, liveTrip, vp).ifPresent(vehicles::add);
+          locate(dataset, fullTrip, vp).ifPresent(located::add);
         }
       }
 
-      log.info("Route data for {}/{}: {} vehicles on a {} stop chain",
-        transportMode, routeGroup, vehicles.size(), liveTrip.getLiveStops().size());
-      return new RouteData(STATUS_OK, liveTrip, vehicles);
+      if (range == null) {
+        log.info("Route data for {}: {} vehicles on the full {} stop chain",
+          groupKey, located.size(), fullTrip.getLiveStops().size());
+        return RouteData.builder().status(STATUS_OK).liveTrip(fullTrip).vehicles(located).build();
+      }
+      return buildFocused(groupKey, fullTrip, located, range);
     } catch (Exception e) {
       log.warn("Route data for {}/{} failed: {}", transportMode, routeGroup, e.getMessage(), e);
-      return new RouteData("Failure: " + e.getMessage(), null, List.of());
+      return RouteData.builder().status("Failure: " + e.getMessage()).vehicles(List.of()).build();
     }
+  }
+
+  /**
+   * A group marked {@code onlyFocused} is served focused whatever the caller asked for. Unfocused it would
+   * have to draw a fork the schematic cannot render, and vehicles from branches it does not draw would be
+   * placed at stations they never reach. The frontend disables the toggle; this makes it stick.
+   */
+  private boolean isFocusedView(boolean focused, GtfsMonitoredRoute monitoredRoute) {
+    if (monitoredRoute != null && monitoredRoute.isOnlyFocused() && !focused) {
+      log.debug("Forcing focused view — group is marked onlyFocused");
+      return true;
+    }
+    return focused;
+  }
+
+  private boolean hasFocusWindow(GtfsMonitoredRoute monitoredRoute) {
+    return monitoredRoute != null
+      && monitoredRoute.getFocusStart() != null
+      && monitoredRoute.getFocusEnd() != null;
+  }
+
+  /**
+   * Locates the configured focus window in the chain. Null — and a loud error — when either end cannot be
+   * found or they are the wrong way round: the ids are free text with no reference to the chain, so a typo
+   * or a stop that fell out of the timetable surfaces only here.
+   */
+  private FocusRange resolveFocusRange(LiveTrip trip, GtfsMonitoredRoute monitoredRoute, GroupKey groupKey) {
+    int startIdx = indexOfStop(trip, monitoredRoute.getFocusStart());
+    int endIdx = indexOfStop(trip, monitoredRoute.getFocusEnd());
+    if (startIdx < 0 || endIdx < 0 || startIdx >= endIdx) {
+      log.error("!!! UNUSABLE FOCUS WINDOW FOR {} !!! focusStart={} resolved to index {}, focusEnd={} to {}. "
+        + "Both must be parent station ids present in the chain, in chain order. Check gtfs_monitored_route.",
+        groupKey, monitoredRoute.getFocusStart(), startIdx, monitoredRoute.getFocusEnd(), endIdx);
+      return null;
+    }
+    return new FocusRange(startIdx, endIdx);
+  }
+
+  private int indexOfStop(LiveTrip trip, String stopId) {
+    List<LiveStop> stops = trip.getLiveStops();
+    for (int i = 0; i < stops.size(); i++) {
+      if (stops.get(i).getStopId().equals(stopId)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * Crops the chain to the window, rebases the vehicles inside it, and counts those approaching from beyond
+   * each end. A vehicle that has already left the window is dropped without being counted — it tells the
+   * viewer nothing about when the next one arrives.
+   */
+  private RouteData buildFocused(GroupKey groupKey, LiveTrip fullTrip, List<LiveVehicle> located,
+                                 FocusRange range) {
+    List<LiveStop> fullStops = fullTrip.getLiveStops();
+    LiveTrip croppedTrip = new LiveTrip(
+      fullTrip.getDirection(),
+      fullTrip.getStopHeading(),
+      new ArrayList<>(fullStops.subList(range.startIdx(), range.endIdx() + 1)),
+      fullTrip.getRouteVariants());
+
+    List<LiveVehicle> inside = new ArrayList<>();
+    int approachingAtStart = 0;
+    int approachingAtEnd = 0;
+    for (LiveVehicle vehicle : located) {
+      int segIdx = vehicle.getLocation().segIdx();
+      boolean headingDown = vehicle.getTrip().getDirectionId() == fullTrip.getDirection();
+      if (segIdx >= range.startIdx() && segIdx < range.endIdx()) {
+        inside.add(rebase(vehicle, range.startIdx()));
+      } else if (segIdx < range.startIdx()) {
+        if (headingDown) {
+          approachingAtStart++;
+        }
+      } else if (!headingDown) {
+        approachingAtEnd++;
+      }
+    }
+
+    RouteFocus focus = RouteFocus.builder()
+      .truncatedStart(range.startIdx() > 0)
+      .truncatedEnd(range.endIdx() < fullStops.size() - 1)
+      .approachingAtStart(approachingAtStart)
+      .approachingAtEnd(approachingAtEnd)
+      .build();
+
+    log.info("Route data for {} focused to stops {}-{} of {}: {} vehicles inside, {} approaching at start, "
+        + "{} approaching at end",
+      groupKey, range.startIdx(), range.endIdx(), fullStops.size(), inside.size(),
+      approachingAtStart, approachingAtEnd);
+    return RouteData.builder()
+      .status(STATUS_OK)
+      .liveTrip(croppedTrip)
+      .vehicles(inside)
+      .focus(focus)
+      .build();
+  }
+
+  /** Shifts a vehicle's segment index from the full chain onto the cropped one. */
+  private LiveVehicle rebase(LiveVehicle vehicle, int startIdx) {
+    VehicleLocation location = vehicle.getLocation();
+    return LiveVehicle.builder()
+      .position(vehicle.getPosition())
+      .location(new VehicleLocation(location.segIdx() - startIdx, location.t(), location.dist()))
+      .trip(vehicle.getTrip())
+      .build();
   }
 
   private boolean matchesGroup(GtfsRouteInfo routeInfo, TransportMode transportMode, int routeGroup) {
