@@ -40,5 +40,8 @@
     <include file="db/changelog/changes/033-rename-gtfs-monitored-line-to-route.xml"/>
     <include file="db/changelog/changes/034-add-focus-columns-to-gtfs-monitored-route.xml"/>
     <include file="db/changelog/changes/035-add-last-login-to-allowed-user.xml"/>
+    <include file="db/changelog/changes/036-set-train-focus-window.xml"/>
+    <include file="db/changelog/changes/037-set-metro-focus-window.xml"/>
+    <include file="db/changelog/changes/038-set-metro-only-focused.xml"/>
 
 </databaseChangeLog>

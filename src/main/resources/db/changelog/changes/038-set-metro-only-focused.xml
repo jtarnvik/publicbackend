@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <!--
+      The green line group (17, 18 and 19) can only ever be shown focused.
+
+      Unfocused it would have to draw the whole chain past Gullmarsplan, where the three lines diverge — and
+      the schematic has no way to render a fork. Worse, GtfsGeometryUtil.locateOnRoute() projects every
+      vehicle onto the drawn chain regardless, so trains on a branch that is not drawn would be shown at
+      stations they never reach. Silently plausible and wrong.
+
+      The focus window set in changeset 037 ends at Gullmarsplan precisely so that everything inside it runs
+      on common track. only_focused makes that the only view available, rather than a mode the user can
+      switch out of into a broken one.
+    -->
+    <changeSet id="038-1" author="jesper">
+        <update tableName="gtfs_monitored_route">
+            <column name="only_focused" valueBoolean="true"/>
+            <where>transport_mode = 'METRO'</where>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>

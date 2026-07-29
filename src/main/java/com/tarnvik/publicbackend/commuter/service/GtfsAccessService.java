@@ -229,6 +229,26 @@ public class GtfsAccessService {
       GroupKey key = entry.getKey();
       List<GtfsMonitoredRoute> group = entry.getValue();
       GtfsMonitoredRoute first = group.getFirst();
+
+      // A focus window needs both ends or neither. Half a window is silently treated as no window by the
+      // frontend, so the group loses its focus toggle with no indication that anything is wrong.
+      boolean hasStart = first.getFocusStart() != null;
+      boolean hasEnd = first.getFocusEnd() != null;
+      if (hasStart != hasEnd) {
+        errors.add(String.format(
+          "Group %s/%d: focus window is half set (focusStart=%s, focusEnd=%s) — set both or neither",
+          key.transportMode(), key.routeGroup(), first.getFocusStart(), first.getFocusEnd()));
+      }
+
+      // onlyFocused locks the group into the focused view, so a group without a window to focus on would be
+      // locked into a view that cannot be produced — and the frontend would disable the toggle with nothing
+      // behind it.
+      if (first.isOnlyFocused() && !(hasStart && hasEnd)) {
+        errors.add(String.format(
+          "Group %s/%d: onlyFocused is set but the focus window is incomplete (focusStart=%s, focusEnd=%s)",
+          key.transportMode(), key.routeGroup(), first.getFocusStart(), first.getFocusEnd()));
+      }
+
       for (int i = 1; i < group.size(); i++) {
         GtfsMonitoredRoute other = group.get(i);
         if (other.isOnlyFocused() != first.isOnlyFocused()) {

@@ -145,6 +145,53 @@ class GtfsAccessServiceRouteGroupTest {
   }
 
   @Test
+  void validateRouteGroupConsistency_onlyFocusedWithoutWindow_throws() {
+    GtfsMonitoredRoute r43 = route("43", TransportMode.TRAIN, 1);
+    r43.setOnlyFocused(true);
+
+    assertThatThrownBy(() -> service.validateRouteGroupConsistency(List.of(r43)))
+      .isInstanceOf(IllegalStateException.class)
+      .hasMessageContaining("inconsistent");
+  }
+
+  @Test
+  void validateRouteGroupConsistency_onlyFocusedWithHalfWindow_throws() {
+    GtfsMonitoredRoute r43 = route("43", TransportMode.TRAIN, 1);
+    r43.setOnlyFocused(true);
+    r43.setFocusStart("start-id");
+
+    assertThatThrownBy(() -> service.validateRouteGroupConsistency(List.of(r43)))
+      .isInstanceOf(IllegalStateException.class)
+      .hasMessageContaining("inconsistent");
+  }
+
+  @Test
+  void validateRouteGroupConsistency_notOnlyFocusedWithoutWindow_doesNotThrow() {
+    // The buses: no window and no claim to need one.
+    service.validateRouteGroupConsistency(List.of(route("117", TransportMode.BUS, 2)));
+  }
+
+  @Test
+  void validateRouteGroupConsistency_focusStartWithoutFocusEnd_throws() {
+    GtfsMonitoredRoute r43 = route("43", TransportMode.TRAIN, 1);
+    r43.setFocusStart("start-id");
+
+    assertThatThrownBy(() -> service.validateRouteGroupConsistency(List.of(r43)))
+      .isInstanceOf(IllegalStateException.class)
+      .hasMessageContaining("inconsistent");
+  }
+
+  @Test
+  void validateRouteGroupConsistency_focusEndWithoutFocusStart_throws() {
+    GtfsMonitoredRoute r43 = route("43", TransportMode.TRAIN, 1);
+    r43.setFocusEnd("end-id");
+
+    assertThatThrownBy(() -> service.validateRouteGroupConsistency(List.of(r43)))
+      .isInstanceOf(IllegalStateException.class)
+      .hasMessageContaining("inconsistent");
+  }
+
+  @Test
   void validateRouteGroupConsistency_inconsistentFocusStart_throws() {
     GtfsMonitoredRoute r43 = route("43", TransportMode.TRAIN, 1);
     r43.setFocusStart("start-a");

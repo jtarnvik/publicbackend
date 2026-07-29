@@ -2,6 +2,7 @@ package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsDataStatusResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.MonitoredRouteGroupResponse;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.mapper.RouteDataMapper;
 import com.tarnvik.publicbackend.commuter.service.GtfsAccessService;
 import com.tarnvik.publicbackend.commuter.service.GtfsRealtimeService;
 import com.tarnvik.publicbackend.config.AllowedUserArgumentResolver;
@@ -38,6 +39,7 @@ class GtfsControllerTest {
   @MockitoBean AllowedUserArgumentResolver allowedUserArgumentResolver;
   @MockitoBean GtfsAccessService gtfsAccessService;
   @MockitoBean GtfsRealtimeService gtfsRealtimeService;
+  @MockitoBean RouteDataMapper routeDataMapper;
 
   @Test
   void getRouteGroups_returnsGroupsWithCorrectFieldNamesAndValues() throws Exception {

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <!--
+      Focus window for the green line group (17, 18 and 19, all METRO route_group 1): Åkeshov to Gullmarsplan.
+      The full chain runs Hässelby strand to Hagsätra, 35 stations.
+
+      Both ids are parent stations (9021001...), given in chain order — the chain starts at Hässelby strand,
+      so Åkeshov comes before Gullmarsplan.
+
+      Gullmarsplan is the last station all three lines share: 19 branches off towards Hagsätra immediately
+      after it, and 17/18 continue via Skärmarbrink. Ending the window there keeps every vehicle inside it on
+      genuinely common track, so none is projected onto a branch it does not run.
+
+      As with TRAIN, the update is by transport_mode: all rows in a route group must carry identical focus
+      config or GtfsAccessService.validateRouteGroupConsistency() aborts startup.
+    -->
+    <changeSet id="037-1" author="jesper">
+        <update tableName="gtfs_monitored_route">
+            <column name="focus_start" value="9021001001241000"/>
+            <column name="focus_end" value="9021001001551000"/>
+            <where>transport_mode = 'METRO'</where>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>

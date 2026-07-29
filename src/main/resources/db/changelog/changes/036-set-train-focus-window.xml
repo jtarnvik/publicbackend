@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <!--
+      Focus window for the commuter train group (43 and 44, both TRAIN route_group 1): Kungsängen to Älvsjö.
+      The full chain runs Bålsta to Västerhaninge, most of which is of no interest.
+
+      Both ids are parent stations (9021001...), which is what LiveTrip's stop chain is built from — platform
+      ids (9022001...) would never match. They are given in chain order: the chain starts at Bålsta, so
+      Kungsängen comes before Älvsjö.
+
+      All rows in a route group must carry identical focus config; GtfsAccessService.validateRouteGroupConsistency()
+      aborts startup if 43 and 44 disagree. Hence the update is by transport_mode rather than per line.
+    -->
+    <changeSet id="036-1" author="jesper">
+        <update tableName="gtfs_monitored_route">
+            <column name="focus_start" value="9021001006081000"/>
+            <column name="focus_end" value="9021001005141000"/>
+            <where>transport_mode = 'TRAIN'</where>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>
