@@ -5,6 +5,7 @@ import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.RouteData;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsDataStatusResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.MonitoredRouteGroupResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.RouteDataResponse;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.RouteGroupStopsResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.mapper.RouteDataMapper;
 import com.tarnvik.publicbackend.commuter.service.GtfsAccessService;
 import com.tarnvik.publicbackend.commuter.service.GtfsRealtimeService;
@@ -33,6 +34,15 @@ public class GtfsController {
   @GetMapping("/status")
   public ResponseEntity<GtfsDataStatusResponse> getDataStatus() {
     return ResponseEntity.ok(gtfsAccessService.getDataStatus());
+  }
+
+  /**
+   * Every stop of every route group, for the favourite stop picker in the settings dialog. Empty when the
+   * dataset is not loaded — the dialog must still open and save in that state.
+   */
+  @GetMapping("/route-group-stops")
+  public ResponseEntity<List<RouteGroupStopsResponse>> getRouteGroupStops() {
+    return ResponseEntity.ok(gtfsAccessService.getRouteGroupStops());
   }
 
   @GetMapping("/route-data")

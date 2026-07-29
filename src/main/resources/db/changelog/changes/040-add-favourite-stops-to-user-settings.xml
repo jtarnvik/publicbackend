@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <!--
+      Favourite stops: the stops a user wants emphasised on the live traffic schematic. Stored as JSON in a
+      TEXT column via FavouriteStopListConverter, the same shape as recent_stops (changeset 022).
+
+      No row level security block here — that rule applies to changesets that create a table, and
+      user_settings already has RLS enabled from the changeset that created it.
+    -->
+    <changeSet id="040-1" author="jesper">
+        <addColumn tableName="user_settings">
+            <column name="favourite_stops" type="TEXT">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

@@ -8,6 +8,8 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsCalendarDateRepository;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsDataStatusResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.MonitoredRouteGroupResponse;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.RouteGroupStopsResponse;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.SelectableStopResponse;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsMonitoredRouteRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsRouteRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopRepository;
@@ -15,6 +17,7 @@ import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsStopTimeRe
 import com.tarnvik.publicbackend.commuter.model.domain.repository.GtfsTripRepository;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsCalendarDate;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsDataset;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.GroupKey;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsRoute;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRouteInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopInfo;
@@ -182,24 +185,16 @@ public class GtfsAccessService {
   }
 
   public List<MonitoredRouteGroupResponse> getMonitoredRouteGroups() {
-    List<GtfsMonitoredRoute> routes = dataset.get().getMonitoredRoutes();
-    record GroupKey(TransportMode transportMode, int routeGroup) {}
-
-    return routes.stream()
-      .collect(Collectors.groupingBy(r -> new GroupKey(r.getTransportMode(), r.getRouteGroup())))
+    return dataset.get().getMonitoredRoutes().stream()
+      .collect(Collectors.groupingBy(GtfsMonitoredRoute::getGroupKey))
       .entrySet().stream()
       .map(entry -> {
         GroupKey key = entry.getKey();
-        List<GtfsMonitoredRoute> group = entry.getValue();
-        GtfsMonitoredRoute representative = group.getFirst();
-        String displayName = group.stream()
-          .map(GtfsMonitoredRoute::getRouteShortName)
-          .sorted(Comparator.comparingInt(Integer::parseInt))
-          .collect(Collectors.joining("/"));
+        GtfsMonitoredRoute representative = entry.getValue().getFirst();
         return MonitoredRouteGroupResponse.builder()
           .transportMode(key.transportMode().name())
           .routeGroup(key.routeGroup())
-          .displayName(displayName)
+          .displayName(displayName(entry.getValue()))
           .focusStart(representative.getFocusStart())
           .focusEnd(representative.getFocusEnd())
           .onlyFocused(representative.isOnlyFocused())
@@ -208,6 +203,44 @@ public class GtfsAccessService {
       .sorted(Comparator.comparing(MonitoredRouteGroupResponse::getTransportMode)
         .thenComparingInt(MonitoredRouteGroupResponse::getRouteGroup))
       .toList();
+  }
+
+  /**
+   * Every stop of every route group, for the favourite stop picker in the settings dialog.
+   * <p>
+   * Offers the whole chain, not just the part a focused view would draw: favouriting a stop outside a focus
+   * window simply never shows, which is harmless, and it means widening a window later does not orphan
+   * anything already chosen.
+   * <p>
+   * Returns an empty list when the dataset is not loaded — which is the case outside the {@code local}
+   * profile. The dialog must still open and save in that state, so this is not an error.
+   */
+  public List<RouteGroupStopsResponse> getRouteGroupStops() {
+    GtfsDataset current = dataset.get();
+    return current.getMonitoredRoutes().stream()
+      .collect(Collectors.groupingBy(GtfsMonitoredRoute::getGroupKey))
+      .entrySet().stream()
+      .flatMap(entry -> current.findLiveTrip(entry.getKey())
+        .map(liveTrip -> RouteGroupStopsResponse.builder()
+          .transportMode(entry.getKey().transportMode().name())
+          .routeGroup(entry.getKey().routeGroup())
+          .displayName(displayName(entry.getValue()))
+          .stops(liveTrip.getLiveStops().stream()
+            .map(stop -> new SelectableStopResponse(stop.getStopId(), stop.getStopName()))
+            .toList())
+          .build())
+        .stream())
+      .sorted(Comparator.comparing(RouteGroupStopsResponse::getTransportMode)
+        .thenComparingInt(RouteGroupStopsResponse::getRouteGroup))
+      .toList();
+  }
+
+  /** The group's public name: its line numbers in numeric order, e.g. "17/18/19". */
+  private static String displayName(List<GtfsMonitoredRoute> group) {
+    return group.stream()
+      .map(GtfsMonitoredRoute::getRouteShortName)
+      .sorted(Comparator.comparingInt(Integer::parseInt))
+      .collect(Collectors.joining("/"));
   }
 
   public GtfsDataStatusResponse getDataStatus() {

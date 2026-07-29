@@ -1,6 +1,8 @@
 package com.tarnvik.publicbackend.commuter.model.domain.entity;
 
+import com.tarnvik.publicbackend.commuter.model.domain.FavouriteStop;
 import com.tarnvik.publicbackend.commuter.model.domain.RecentStop;
+import com.tarnvik.publicbackend.commuter.model.domain.converter.FavouriteStopListConverter;
 import com.tarnvik.publicbackend.commuter.model.domain.converter.RecentStopListConverter;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -49,6 +51,14 @@ public class UserSettings {
   @Convert(converter = RecentStopListConverter.class)
   @Column(name = "recent_stops", columnDefinition = "TEXT")
   private List<RecentStop> recentStops = new ArrayList<>();
+
+  /**
+   * Stops to emphasise on the live traffic schematic. The converter returns an immutable empty list for
+   * null or blank column data, so always copy into a new list before mutating.
+   */
+  @Convert(converter = FavouriteStopListConverter.class)
+  @Column(name = "favourite_stops", columnDefinition = "TEXT")
+  private List<FavouriteStop> favouriteStops = new ArrayList<>();
 
   @CreationTimestamp
   @Column(name = "create_date", updatable = false)

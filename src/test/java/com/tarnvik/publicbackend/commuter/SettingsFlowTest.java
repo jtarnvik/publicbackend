@@ -23,8 +23,10 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oauth2Login;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -82,6 +84,130 @@ class SettingsFlowTest {
     assertThat(settings.getStopPointId()).isEqualTo("9091001000003715");
     assertThat(settings.getStopPointName()).isEqualTo("Skogslöparvägen");
     assertThat(settings.isUseAiInterpretation()).isTrue();
+  }
+
+  // --- Favourite stops, saved as part of PUT /api/protected/settings ---
+
+  /** Body with an explicit favouriteStops value. Map.of cannot hold nulls, hence the raw JSON. */
+  private String settingsBody(String favouriteStopsJson) {
+    return """
+      {"stopPointId":"9091001000003715","stopPointName":"Skogslöparvägen","useAiInterpretation":true%s}
+      """.formatted(favouriteStopsJson == null ? "" : ",\"favouriteStops\":" + favouriteStopsJson);
+  }
+
+  private void putSettings(String body) throws Exception {
+    mockMvc.perform(put("/api/protected/settings")
+        .with(oauth2Login().attributes(attrs -> attrs.put("email", TEST_EMAIL)))
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(body))
+      .andExpect(status().isOk());
+  }
+
+  private static String favourite(String id, String name) {
+    return "{\"stopId\":\"%s\",\"stopName\":\"%s\"}".formatted(id, name);
+  }
+
+  @Test
+  void saveSettings_withFavouriteStops_persistsThem() throws Exception {
+    putSettings(settingsBody("[" + favourite("9021001001241000", "Åkeshov")
+      + "," + favourite("9021001006081000", "Kungsängen") + "]"));
+
+    UserSettings settings = userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL).orElseThrow();
+    assertThat(settings.getFavouriteStops()).hasSize(2);
+    assertThat(settings.getFavouriteStops().getFirst().stopId()).isEqualTo("9021001001241000");
+    assertThat(settings.getFavouriteStops().getFirst().stopName()).isEqualTo("Åkeshov");
+  }
+
+  /**
+   * The important one: a user on a cached older frontend bundle sends no favouriteStops at all. That must
+   * leave the stored list alone rather than clearing it or failing the whole save.
+   */
+  @Test
+  void saveSettings_withoutFavouriteStopsField_leavesExistingUnchanged() throws Exception {
+    putSettings(settingsBody("[" + favourite("9021001001241000", "Åkeshov") + "]"));
+
+    putSettings(settingsBody(null));
+
+    UserSettings settings = userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL).orElseThrow();
+    assertThat(settings.getFavouriteStops()).hasSize(1);
+  }
+
+  @Test
+  void saveSettings_withEmptyFavouriteStops_clearsThem() throws Exception {
+    putSettings(settingsBody("[" + favourite("9021001001241000", "Åkeshov") + "]"));
+
+    putSettings(settingsBody("[]"));
+
+    UserSettings settings = userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL).orElseThrow();
+    assertThat(settings.getFavouriteStops()).isEmpty();
+  }
+
+  @Test
+  void saveSettings_withMoreThanTenFavourites_truncatesSilently() throws Exception {
+    StringBuilder favourites = new StringBuilder("[");
+    for (int i = 0; i < 13; i++) {
+      favourites.append(i > 0 ? "," : "").append(favourite("902100100000000" + i, "Stop " + i));
+    }
+    favourites.append("]");
+
+    putSettings(settingsBody(favourites.toString()));
+
+    UserSettings settings = userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL).orElseThrow();
+    assertThat(settings.getFavouriteStops()).hasSize(10);
+  }
+
+  /** A stop can appear in two route groups, so ticking it twice must not consume two of the ten. */
+  @Test
+  void saveSettings_withDuplicateStopIds_dedupes() throws Exception {
+    putSettings(settingsBody("[" + favourite("9021001012025000", "Alvik")
+      + "," + favourite("9021001012025000", "Alvik") + "]"));
+
+    UserSettings settings = userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL).orElseThrow();
+    assertThat(settings.getFavouriteStops()).hasSize(1);
+  }
+
+  @Test
+  void saveSettings_withBlankStopId_dropsIt() throws Exception {
+    putSettings(settingsBody("[{\"stopId\":\"\",\"stopName\":\"Trasig\"},"
+      + favourite("9021001001241000", "Åkeshov") + "]"));
+
+    UserSettings settings = userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL).orElseThrow();
+    assertThat(settings.getFavouriteStops()).hasSize(1);
+    assertThat(settings.getFavouriteStops().getFirst().stopId()).isEqualTo("9021001001241000");
+  }
+
+  /** saveSettings writes two lists now; recentStops must still be none of its business. */
+  @Test
+  void saveSettings_doesNotClobberRecentStops() throws Exception {
+    mockMvc.perform(post("/api/protected/settings/recent-stops")
+        .with(oauth2Login().attributes(attrs -> attrs.put("email", TEST_EMAIL)))
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(objectMapper.writeValueAsString(
+          Map.of("stopPointId", "1001", "stopPointName", "Första hållplatsen"))))
+      .andExpect(status().isOk());
+
+    putSettings(settingsBody("[" + favourite("9021001001241000", "Åkeshov") + "]"));
+
+    UserSettings settings = userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL).orElseThrow();
+    assertThat(settings.getRecentStops()).hasSize(1);
+    assertThat(settings.getFavouriteStops()).hasSize(1);
+  }
+
+  /**
+   * Also pins the JSON field names of SettingsResponse, which changed from a record to @Value @Builder —
+   * useAiInterpretation is the one a bad Lombok getter name would silently rename.
+   */
+  @Test
+  void me_returnsFavouriteStopsAndKeepsSettingsFieldNames() throws Exception {
+    putSettings(settingsBody("[" + favourite("9021001001241000", "Åkeshov") + "]"));
+
+    mockMvc.perform(get("/api/auth/me")
+        .with(oauth2Login().attributes(attrs -> attrs.put("email", TEST_EMAIL))))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.settings.useAiInterpretation").value(true))
+      .andExpect(jsonPath("$.settings.favouriteStops.length()").value(1))
+      .andExpect(jsonPath("$.settings.favouriteStops[0].stopId").value("9021001001241000"))
+      .andExpect(jsonPath("$.settings.favouriteStops[0].stopName").value("Åkeshov"));
   }
 
   // --- POST /api/protected/settings/recent-stops ---

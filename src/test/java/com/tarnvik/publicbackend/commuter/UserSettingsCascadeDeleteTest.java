@@ -47,7 +47,7 @@ class UserSettingsCascadeDeleteTest {
   void deletingUserAlsoCascadesSettings() throws Exception {
     allowedUserService.createUser(TEST_EMAIL, TEST_NAME);
     var user = allowedUserRepository.findByEmail(TEST_EMAIL).orElseThrow();
-    userSettingsService.saveSettings(user, "9091001000003715", "Skogslöparvägen", true);
+    userSettingsService.saveSettings(user, "9091001000003715", "Skogslöparvägen", true, null);
 
     assertThat(userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL)).isPresent();
 

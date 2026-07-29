@@ -119,6 +119,12 @@ class GtfsAccessServiceRouteGroupTest {
     assertThat(result.get(0).isOnlyFocused()).isTrue();
   }
 
+  /** Production path: no dataset outside the local profile, so the favourite stop picker gets nothing. */
+  @Test
+  void getRouteGroupStops_withNoLiveTrips_returnsEmptyList() {
+    assertThat(service.getRouteGroupStops()).isEmpty();
+  }
+
   @Test
   void validateRouteGroupConsistency_consistentGroup_doesNotThrow() {
     GtfsMonitoredRoute r43 = route("43", TransportMode.TRAIN, 1);

@@ -12,8 +12,13 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class AuthService {
-  private static final SettingsResponse DEFAULT_SETTINGS =
-    new SettingsResponse("9091001000003715", "Skogslöparvägen", true, List.of());
+  private static final SettingsResponse DEFAULT_SETTINGS = SettingsResponse.builder()
+    .stopPointId("9091001000003715")
+    .stopPointName("Skogslöparvägen")
+    .useAiInterpretation(true)
+    .recentStops(List.of())
+    .favouriteStops(List.of())
+    .build();
 
   private final UserSettingsService userSettingsService;
   private final AllowedUserService allowedUserService;
@@ -30,12 +35,13 @@ public class AuthService {
       .orElse(null);
 
     SettingsResponse settings = userSettingsService.findByEmail(email)
-      .map(s -> new SettingsResponse(
-        s.getStopPointId() != null ? s.getStopPointId() : DEFAULT_SETTINGS.stopPointId(),
-        s.getStopPointName() != null ? s.getStopPointName() : DEFAULT_SETTINGS.stopPointName(),
-        s.isUseAiInterpretation(),
-        s.getRecentStops()
-      ))
+      .map(s -> SettingsResponse.builder()
+        .stopPointId(s.getStopPointId() != null ? s.getStopPointId() : DEFAULT_SETTINGS.getStopPointId())
+        .stopPointName(s.getStopPointName() != null ? s.getStopPointName() : DEFAULT_SETTINGS.getStopPointName())
+        .useAiInterpretation(s.isUseAiInterpretation())
+        .recentStops(s.getRecentStops())
+        .favouriteStops(s.getFavouriteStops())
+        .build())
       .orElse(DEFAULT_SETTINGS);
 
     return new MeResponse(

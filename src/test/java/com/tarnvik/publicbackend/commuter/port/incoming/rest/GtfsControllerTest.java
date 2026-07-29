@@ -2,6 +2,8 @@ package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.GtfsDataStatusResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.MonitoredRouteGroupResponse;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.RouteGroupStopsResponse;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.SelectableStopResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.mapper.RouteDataMapper;
 import com.tarnvik.publicbackend.commuter.service.GtfsAccessService;
 import com.tarnvik.publicbackend.commuter.service.GtfsRealtimeService;
@@ -64,6 +66,37 @@ class GtfsControllerTest {
       .andExpect(jsonPath("$[1].focusStart").value("9021001001009001"))
       .andExpect(jsonPath("$[1].focusEnd").value("9021001001007001"))
       .andExpect(jsonPath("$[1].onlyFocused").value(true));
+  }
+
+  @Test
+  void getRouteGroupStops_returnsGroupsWithNestedStops() throws Exception {
+    when(gtfsAccessService.getRouteGroupStops()).thenReturn(List.of(
+      RouteGroupStopsResponse.builder()
+        .transportMode("BUS").routeGroup(2).displayName("117")
+        .stops(List.of(
+          new SelectableStopResponse("9021001012138000", "Spånga station"),
+          new SelectableStopResponse("9021001012281000", "Urban Hjärnes väg")))
+        .build()));
+
+    mockMvc.perform(get("/api/protected/gtfs/route-group-stops"))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.length()").value(1))
+      .andExpect(jsonPath("$[0].transportMode").value("BUS"))
+      .andExpect(jsonPath("$[0].routeGroup").value(2))
+      .andExpect(jsonPath("$[0].displayName").value("117"))
+      .andExpect(jsonPath("$[0].stops.length()").value(2))
+      .andExpect(jsonPath("$[0].stops[0].stopId").value("9021001012138000"))
+      .andExpect(jsonPath("$[0].stops[0].stopName").value("Spånga station"));
+  }
+
+  /** The production case: no dataset outside the local profile, so the picker gets an empty catalogue. */
+  @Test
+  void getRouteGroupStops_whenDatasetEmpty_returnsEmptyList() throws Exception {
+    when(gtfsAccessService.getRouteGroupStops()).thenReturn(List.of());
+
+    mockMvc.perform(get("/api/protected/gtfs/route-group-stops"))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.length()").value(0));
   }
 
   @Test
