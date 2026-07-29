@@ -222,8 +222,9 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 | POST | `/api/auth/logout` | Optional | Clears session and cookie |
 | GET | `/api/protected/gtfs/route-groups` | User | List selectable monitored route groups (transportMode, routeGroup, displayName) |
 | GET | `/api/protected/gtfs/status` | User | GTFS data availability: `date`, `status` (enum name), `staticDataAvailable` (derived from in-memory dataset) |
-| GET | `/api/protected/gtfs/route-data` | User | Live data for one route group. Params: `transportMode`, `routeGroup`, `focused` (accepted, not yet honoured). Returns `RouteDataResponse`: `status`, `liveTrip` (the canonical stop chain, sent once), and `vehicles` located on it |
-| PUT | `/api/protected/settings` | User | Save stop point settings |
+| GET | `/api/protected/gtfs/route-group-stops` | User | Every stop of every route group, for the favourite stop picker. Empty when the GTFS dataset is not loaded |
+| GET | `/api/protected/gtfs/route-data` | User | Live data for one route group. Params: `transportMode`, `routeGroup`, `focused` (forced true for `onlyFocused` groups). Returns `RouteDataResponse`: `status`, `liveTrip` (the stop chain, cropped when focused, sent once), `vehicles` rebased onto it, and `focus` (truncation flags + approaching counts) |
+| PUT | `/api/protected/settings` | User | Save stop point settings and favourite stops. `favouriteStops` null means unchanged, `[]` clears |
 | DELETE | `/api/protected/account` | User | Delete own account (cascade removes all data, invalidates session). Returns 409 if last admin. |
 | POST | `/api/protected/deviations/interpret` | User | Interpret a list of deviation texts via Claude AI |
 | POST | `/api/protected/deviations/{id}/hide` | User | Hide a deviation by its DB id |
