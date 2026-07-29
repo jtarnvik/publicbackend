@@ -10,7 +10,20 @@ Before generating any Java code, read `src/main/resources/checkstyle.xml` to avo
 
 ## Sensitive Files
 
-`application-local.properties` contains real secrets (API keys, database passwords, OAuth credentials). **Never read this file unless explicitly instructed.** If instructed to read it, first warn the user that its contents will be visible in the conversation and may be retained in Anthropic's systems, then wait for confirmation before proceeding.
+**Never read any gitignored `src/main/resources/application-*.properties` file unless explicitly instructed.**
+This currently means `application-local.properties` and `application-travel.properties`, and any future
+sibling — the rule is the pattern, not the list, because a new profile file will not announce itself.
+
+They contain real secrets: API keys (Anthropic, Samtrafiken, Pushover), database passwords, and OAuth
+credentials. `application.properties` and `src/test/resources/application-test.properties` are tracked in git
+and safe to read.
+
+If instructed to read one, first warn that its contents will be visible in the conversation and may be
+retained in Anthropic's systems, then wait for confirmation before proceeding.
+
+To check what a profile configures without exposing values, read the *keys* only — e.g.
+`grep -o '^[^=]*' src/main/resources/application-travel.properties` — or check which properties the code
+expects via `application.properties`, which holds the same keys with `${ENV_VAR}` placeholders.
 
 ## Code Conventions
 
