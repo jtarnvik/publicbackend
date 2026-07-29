@@ -239,7 +239,6 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 | GET | `/api/admin/gtfs/status` | Admin | Most recent `gtfs_download_log` entry (phase timestamps, error message) |
 | POST | `/api/admin/gtfs/run-pipeline` | Admin | Run the GTFS pipeline manually |
 | POST | `/api/admin/gtfs/reset` | Admin | Reset the most recent entry to `DOWNLOAD_DONE` and clear the GTFS tables. 409 while a download is in flight |
-| POST | `/api/admin/gtfs/realtime-poc` | Admin | Trigger `GtfsRealtimeService.poc()` — logs live line 117 vehicles and their located positions. Temporary |
 | GET | `/api/public/routes/{id}` | Public | Fetch a shared route by ID; returns `{ routeData }` (serialized Journey JSON) |
 
 ---
@@ -553,8 +552,10 @@ show in the GTFS status admin view.
 
 `GtfsDownloadJob` (`port.incoming.scheduled`) fires at 05:00 and on `ApplicationReadyEvent`. It is guarded
 by `gtfs_download_log` (one attempt per date); the local profile adds a cap of 15 downloads per 30 days.
-`GtfsPipelineService.runPipeline()` orchestrates the phases: download → unzip → parse. Each phase writes
-start/end timestamps to `gtfs_download_log`. `GtfsDownloadException` (unchecked) aborts the pipeline;
+`GtfsPipelineService.runPipeline()` orchestrates the phases: download → unzip → parse, then rebuilds the
+in-memory dataset and calls `verifyRealtimeFeed()` — a single realtime fetch whose result is discarded, to keep
+the realtime API exercised and to surface credential/quota/format problems in a log that is being read anyway.
+Each phase writes start/end timestamps to `gtfs_download_log`. `GtfsDownloadException` (unchecked) aborts the pipeline;
 `RestExceptionHandler` returns HTTP 500 for any that reach a controller. Pipeline failures trigger a Pushover
 notification via `PushoverProvider.sendGtfsPipelineErrorNotification(phase, message)`.
 

@@ -4,8 +4,6 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsDataset;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRouteInfo;
-import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopInfo;
-import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsVehiclePosition;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.GroupKey;
@@ -28,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -233,63 +230,6 @@ public class GtfsRealtimeService {
       .location(location)
       .trip(maybeTrip.get())
       .build());
-  }
-
-  public void poc() {
-    try {
-      Optional<Map<GtfsRouteInfo, List<GtfsVehiclePosition>>> direct = gtfsCache.getContinously();
-      if (direct.isEmpty()) {
-        log.info("No static data, try again tomorrow.");
-        return;
-      }
-      Map<GtfsRouteInfo, List<GtfsVehiclePosition>> vpByRoute = direct.get();
-      final GtfsDataset dataset = gtfsAccessService.getDataset();
-
-      vpByRoute.entrySet().stream()
-        .sorted(Map.Entry.comparingByKey(java.util.Comparator.comparing(GtfsRouteInfo::getRouteShortName)))
-        .forEach(e -> log.info("  line {} -> {} vehicles", e.getKey().getRouteShortName(), e.getValue().size()));
-
-      Optional<GtfsRouteInfo> rt117Opt = vpByRoute.keySet().stream()
-        .filter(k -> k.getRouteShortName().equals("117"))
-        .findFirst();
-      rt117Opt.ifPresent(rt117 -> {
-        List<GtfsVehiclePosition> vps117 = vpByRoute.get(rt117Opt.get());
-        log.info("Found 117 line, {} vehicles", vps117.size());
-        vps117.forEach(vp -> {
-          GtfsTripInfo gtfsTripInfo = dataset.findTripByTripId(vp.getTripId()).orElseThrow();
-
-          log.info("117 Vehicle: routeid: {}, tripid: {}, serviceId: {}, direction: {}",
-            gtfsTripInfo.getRouteInfo().getRouteId(),
-            gtfsTripInfo.getTripId(),
-            gtfsTripInfo.getServiceId(),
-            gtfsTripInfo.getDirectionId());
-
-          List<GtfsStopTimeInfo> gtfsStopTimes = dataset.findStopTimesByTripId(vp.getTripId()).orElseThrow();
-          log.info("Found {} stop times", gtfsStopTimes.size());
-          StringBuffer buf = new StringBuffer("Stop chain mot ");
-          buf.append(gtfsStopTimes.get(0).getStopHeadsign());
-          buf.append(": ");
-          String chain = gtfsStopTimes.stream()
-            .map(st -> {
-              GtfsStopInfo stop = st.getStop();
-              GtfsStopInfo parent = stop.getParentStation();
-              return stop.getStopName() + "/" + stop.getStopId() + "/" + parent.getStopId() + "/" + parent.getStopName();
-            })
-            .collect(Collectors.joining(" -> "));
-          buf.append(chain);
-          log.info(buf.toString());
-
-          List<GtfsStopInfo> gtfsStops = gtfsStopTimes.stream()
-            .map(GtfsStopTimeInfo::getStop)
-            .toList();
-
-          VehicleLocation vehicleLocation = GtfsGeometryUtil.locateOnRoute(gtfsStops, vp);
-          log.info("Postition: {}", vehicleLocation);
-        });
-      });
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
   }
 
   /**
