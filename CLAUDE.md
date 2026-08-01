@@ -36,7 +36,7 @@ self-documenting.
 
 Personal Stockholm commuter dashboard backend. Handles Google OAuth2 authentication, user management (access requests, allowed users), settings persistence, and AI interpretation of SL deviation messages via the Claude API. Serves the developer and a few friends.
 
-- **Backend:** Spring Boot 4.0.4 (Java 21)
+- **Backend:** Spring Boot 4.1.0 (Java 25)
 - **Frontend:** React SPA on GitHub Pages at `https://jtarnvik.github.io/sl-dashboard/`
 - **Production hosting:** Render.com
 - **Database:** Supabase (PostgreSQL) in production, MySQL 8.x locally
@@ -344,6 +344,9 @@ push command to the clipboard.
 ```bash
 git push && git push origin v<version>
 ```
+
+**Prerequisites on the Mini:** `just`, Maven, **JDK 25** (the LTS — deliberately not 24, which is
+end-of-life), and a PostgreSQL with the `commuter` database and the role named in `DB_URL`.
 
 **3. On the Mac Mini, from the repo root:**
 ```bash
