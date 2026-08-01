@@ -316,7 +316,10 @@ Tests use `@SpringBootTest` + `@AutoConfigureMockMvc` + `@ActiveProfiles("test")
 
 ## Deployment
 
-Two targets exist while the move off Render is in progress.
+Two targets exist while the move off Render is in progress. The Mac Mini will **fully replace**
+Render — they are not meant to run side by side. The work lives on the branch `local_host` and is
+deliberately **not merged to `main` until Render is decommissioned**, because Render builds `main`
+and would pick up deployment-only settings (notably `server.port=8081`).
 
 ### Render (current production)
 
@@ -347,6 +350,19 @@ git push && git push origin v<version>
 
 **Prerequisites on the Mini:** `just`, Maven, **JDK 25** (the LTS — deliberately not 24, which is
 end-of-life), and a PostgreSQL with the `commuter` database and the role named in `DB_URL`.
+`just build` shells out to plain `mvn`/`java`, so whichever JDK the shell resolves is the one that
+builds — with several installed, 25 has to win or the `--release 25` compile fails.
+
+**First time only, on the Mini:** `just pull` is `fetch` + `checkout`, so the clone has to exist
+first, and the secrets file is never in git:
+```bash
+git clone git@github.com:jtarnvik/publicbackend.git
+cd publicbackend
+cp deployment/publicbackend.env.example deployment/publicbackend.env
+chmod 600 deployment/publicbackend.env      # then fill in the real values
+```
+The env file survives later `just pull`/`just build` runs — it is gitignored, so `checkout` leaves
+it alone, and `prepare_release` only wipes `deployment/bin`.
 
 **3. On the Mac Mini, from the repo root:**
 ```bash
@@ -354,6 +370,8 @@ just pull     # git fetch --tags, checkout the highest version tag (sort -versio
 just build    # build_release (mvn verify → release/) + prepare_release (→ deployment/bin)
 just start    # foreground; deployment/bin/start-publicbackend.sh
 ```
+Verify with `curl localhost:8081/ping` → `ok`, not through the frontend — the deployed frontend
+still points at Render.
 `just doit` chains all three. It re-invokes `just` per step on purpose: `pull` rewrites the justfiles
 and `just` parses them once at startup, so a single-process chain would build the newly checked-out
 source using the *previous* version's jar name.
