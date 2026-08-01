@@ -183,6 +183,37 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <!--
+              Generates build.just from build.just.template, substituting the project version.
+              failonerror="false" because the Docker build context only copies pom.xml and src/,
+              so the template is absent there; change-version.sh checks for the output explicitly.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.2.0</version>
+                <executions>
+                    <execution>
+                        <id>generate-justfile</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <copy file="${project.basedir}/build.just.template"
+                                      tofile="${project.basedir}/build.just"
+                                      overwrite="true"
+                                      failonerror="false">
+                                    <filterset>
+                                        <filter token="project.version" value="${project.version}"/>
+                                    </filterset>
+                                </copy>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>

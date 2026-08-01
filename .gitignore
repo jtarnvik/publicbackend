@@ -41,3 +41,9 @@ application-local.properties
 src/main/resources/application-local.properties
 application-travel.properties
 src/main/resources/application-travel.properties
+# Deployment (just / Mac Mini)
+release/
+deployment/bin/
+deployment/logs/
+deployment/*.env
+pom.xml.versionsBackup

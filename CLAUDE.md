@@ -131,6 +131,7 @@ Authentication flow:
 
 ### Local (`application-local.properties`, never committed)
 ```properties
+server.port=8080
 spring.security.oauth2.client.registration.google.client-id=<value>
 spring.security.oauth2.client.registration.google.client-secret=<value>
 spring.datasource.url=jdbc:mysql://192.168.1.204:3306/commuter
@@ -315,11 +316,69 @@ Tests use `@SpringBootTest` + `@AutoConfigureMockMvc` + `@ActiveProfiles("test")
 
 ## Deployment
 
+Two targets exist while the move off Render is in progress.
+
+### Render (current production)
+
 Push to GitHub main branch → Render auto-detects and builds via Dockerfile →
 Liquibase runs migrations on startup → app serves traffic.
 
 Build command is handled entirely by the Dockerfile (multi-stage Maven build).
 No separate build command needed in Render config.
+
+### Mac Mini (`just`)
+
+Tag-driven: bump and tag on the dev machine, then pull/build/start on the Mini. The Mini keeps its
+own clone (e.g. `~/develop/production/publicbackend`) that only ever sits on a tag. Mirrors the
+`cl-media` setup.
+
+**1. Bump the version (dev machine), from the repo root:**
+```bash
+./change-version.sh <version>      # e.g. 1.0.0 — no leading "v"
+```
+`mvn versions:set` → regenerates `build.just` via `mvn process-resources` → `mvn versions:commit` →
+`git add pom.xml build.just` → commit → `git tag -a v<version>`. It does **not** push; it copies the
+push command to the clipboard.
+
+**2. Push the commit *and* the tag** — the Mini keys off the tag, not the commit:
+```bash
+git push && git push origin v<version>
+```
+
+**3. On the Mac Mini, from the repo root:**
+```bash
+just pull     # git fetch --tags, checkout the highest version tag (sort -version:refname)
+just build    # build_release (mvn verify → release/) + prepare_release (→ deployment/bin)
+just start    # foreground; deployment/bin/start-publicbackend.sh
+```
+`just doit` chains all three. It re-invokes `just` per step on purpose: `pull` rewrites the justfiles
+and `just` parses them once at startup, so a single-process chain would build the newly checked-out
+source using the *previous* version's jar name.
+
+**Generated file:** `build.just` is produced from `build.just.template` by the `maven-antrun-plugin`
+(execution `generate-justfile`, bound to `process-resources`), substituting `@project.version@`.
+Edit the template, never `build.just`. It is **committed** deliberately — the Mini checks out a tag
+and builds immediately, so the jar name for that version must already be in the tag. The antrun copy
+is `failonerror="false"` because the Docker build context has no template; `change-version.sh`
+checks the output exists instead.
+
+**Secrets** live in `deployment/publicbackend.env` on the Mini only (gitignored, `chmod 600`), copied
+from the committed `deployment/publicbackend.env.example`. `start-publicbackend.sh` sources it, so
+the same variable names Render uses resolve the `${DB_URL}`-style placeholders in
+`application.properties` unchanged. Heap is `JAVA_OPTS` from that file (default `-Xmx2g`).
+
+**Run directory** is `deployment/bin`, not `target/` — `mvn clean` must not be able to delete the jar
+out from under a running instance. `deployment/bin`, `deployment/logs`, `deployment/*.env` and
+`release/` are gitignored.
+
+**No profile is activated** — the deployment runs on the defaults in `application.properties`,
+which is why the default `server.port` is **8081**; `application-local.properties` overrides it back
+to 8080 so development keeps the OAuth2 redirect URI already registered with Google. `local` and
+`travel` are the only profiles and both are development-only.
+
+Note that the GTFS in-memory dataset is still gated on the `local` profile
+(`GtfsAccessService.rebuildDataset()`, see I5 in the frontend `CLAUDE.md`) — that gate has to be
+widened before live traffic works on the Mini.
 
 ## Database development
 
