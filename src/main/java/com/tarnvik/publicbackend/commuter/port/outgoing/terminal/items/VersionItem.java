@@ -9,6 +9,8 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+import java.lang.management.ManagementFactory;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
@@ -24,10 +26,20 @@ import java.time.format.DateTimeFormatter;
 @Profile("production")
 @Order(10)
 public class VersionItem extends DashboardItem {
-  private static final DateTimeFormatter BUILT_AT_FORMAT =
+  private static final DateTimeFormatter TIMESTAMP_FORMAT =
     DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.of("Europe/Stockholm"));
 
+  private static final String HEADING = "SL-Commuter Service";
+
   private static final String UNKNOWN = "unknown";
+
+  /**
+   * When this process started, taken from the JVM rather than captured on bean creation so it
+   * reflects the real start rather than however far into startup this bean happened to be built.
+   * Constant for the lifetime of the process, so it is formatted once.
+   */
+  private static final String STARTED_AT = TIMESTAMP_FORMAT.format(
+    Instant.ofEpochMilli(ManagementFactory.getRuntimeMXBean().getStartTime()));
 
   /**
    * Optional on purpose. The bean exists whenever the app runs from a jar built by Maven, but
@@ -42,14 +54,14 @@ public class VersionItem extends DashboardItem {
 
   @Override
   public int rowCount() {
-    return 4;
+    return 5;
   }
 
   @Override
   public void redraw(Terminal terminal, int startRow, int maxRows, int maxCols) {
     BuildProperties build = buildProperties.getIfAvailable();
 
-    printAt(terminal, "publicbackend", startRow, 1, maxRows, maxCols,
+    printAt(terminal, HEADING, startRow, 1, maxRows, maxCols,
       AttributedStyle.WHITE, AttributedStyle.BLUE, true);
 
     printAt(terminal, "Version:", startRow + 1, 1, maxRows, maxCols);
@@ -57,7 +69,10 @@ public class VersionItem extends DashboardItem {
       startRow + 1, VALUE_COLUMN, maxRows, maxCols);
 
     printAt(terminal, "Built:", startRow + 2, 1, maxRows, maxCols);
-    printAt(terminal, build == null || build.getTime() == null ? UNKNOWN : BUILT_AT_FORMAT.format(build.getTime()),
+    printAt(terminal, build == null || build.getTime() == null ? UNKNOWN : TIMESTAMP_FORMAT.format(build.getTime()),
       startRow + 2, VALUE_COLUMN, maxRows, maxCols);
+
+    printAt(terminal, "Started:", startRow + 3, 1, maxRows, maxCols);
+    printAt(terminal, STARTED_AT, startRow + 3, VALUE_COLUMN, maxRows, maxCols);
   }
 }
