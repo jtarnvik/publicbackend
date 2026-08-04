@@ -1,5 +1,6 @@
 package com.tarnvik.publicbackend.commuter.service;
 
+import com.tarnvik.publicbackend.commuter.event.RealtimePollingStateChangedEvent;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsDataset;
@@ -16,6 +17,7 @@ import com.tarnvik.publicbackend.commuter.port.outgoing.rest.samtrafiken.Samtraf
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil.VehicleLocation;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -37,11 +39,23 @@ public class GtfsRealtimeService {
 
   private final SamtrafikenProvider samtrafikenProvider;
   private final GtfsAccessService gtfsAccessService;
+  private final ApplicationEventPublisher eventPublisher;
   private final GtfsRealtimeCache gtfsCache = new GtfsRealtimeCache();
 
-  public GtfsRealtimeService(SamtrafikenProvider samtrafikenProvider, GtfsAccessService gtfsAccessService) {
+  public GtfsRealtimeService(SamtrafikenProvider samtrafikenProvider, GtfsAccessService gtfsAccessService,
+                             ApplicationEventPublisher eventPublisher) {
     this.samtrafikenProvider = samtrafikenProvider;
     this.gtfsAccessService = gtfsAccessService;
+    this.eventPublisher = eventPublisher;
+  }
+
+  /**
+   * Whether the realtime poll loop is currently running — i.e. whether anyone is watching the live
+   * traffic view. Read by the terminal dashboard; changes are also announced as
+   * {@link RealtimePollingStateChangedEvent}.
+   */
+  public boolean isPollLoopActive() {
+    return gtfsCache.isLoopActive();
   }
 
   /** The stretch of the canonical chain a focused view shows, as indices into that chain. Both inclusive. */
@@ -297,7 +311,25 @@ public class GtfsRealtimeService {
         log.debug("GTFS-RT poll loop already running");
         return;
       }
+      publishState(true);
       Thread.ofVirtual().name("gtfs-rt-poll").start(this::pollLoop);
+    }
+
+    public boolean isLoopActive() {
+      return loopActive.get();
+    }
+
+    /**
+     * Announces a loop transition. Wrapped because listeners run synchronously on the caller's
+     * thread: a listener that throws must not be able to abort the poll loop or leave
+     * {@code loopActive} disagreeing with reality.
+     */
+    private void publishState(boolean active) {
+      try {
+        eventPublisher.publishEvent(new RealtimePollingStateChangedEvent(active));
+      } catch (Exception e) {
+        log.warn("Listener failed for realtime polling state change (active={}): {}", active, e.getMessage(), e);
+      }
     }
 
     private void pollLoop() {
@@ -333,6 +365,7 @@ public class GtfsRealtimeService {
         log.info("GTFS-RT poll loop interrupted after {} cycles", cycle);
       } finally {
         loopActive.set(false);
+        publishState(false);
         log.info("GTFS-RT poll loop stopped — {} cycles over {}s",
           cycle, (System.currentTimeMillis() - loopStart) / 1000);
       }

@@ -15,6 +15,8 @@ public interface AllowedUserRepository extends JpaRepository<AllowedUser, Long> 
 
   long countByRole(String role);
 
+  long countByLastLoginAfter(LocalDateTime threshold);
+
   @Transactional
   void deleteByEmail(String email);
 

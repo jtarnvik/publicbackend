@@ -1,13 +1,16 @@
 package com.tarnvik.publicbackend.commuter.service;
 
+import com.tarnvik.publicbackend.commuter.event.UserActivityEvent;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.AllowedUser;
 import com.tarnvik.publicbackend.commuter.model.domain.repository.AllowedUserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -15,11 +18,29 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class AllowedUserService {
+  /** How recently a user must have opened the app to count as active. */
+  private static final Duration ACTIVE_WINDOW = Duration.ofDays(14);
+
+  private static final ZoneId STOCKHOLM = ZoneId.of("Europe/Stockholm");
+
   private final AllowedUserRepository allowedUserRepository;
+  private final ApplicationEventPublisher eventPublisher;
 
   @Transactional
   public void recordLogin(String email) {
-    allowedUserRepository.updateLastLoginByEmail(email, LocalDateTime.now(ZoneId.of("Europe/Stockholm")));
+    allowedUserRepository.updateLastLoginByEmail(email, LocalDateTime.now(STOCKHOLM));
+    eventPublisher.publishEvent(new UserActivityEvent(email));
+  }
+
+  /**
+   * Users who have opened the app within {@link #ACTIVE_WINDOW}.
+   * <p>
+   * The threshold is computed in the same zone {@link #recordLogin} writes in, so the comparison
+   * cannot be skewed by the JVM running in a different default zone.
+   */
+  @Transactional(readOnly = true)
+  public long countActiveUsers() {
+    return allowedUserRepository.countByLastLoginAfter(LocalDateTime.now(STOCKHOLM).minus(ACTIVE_WINDOW));
   }
 
   @Transactional(readOnly = true)

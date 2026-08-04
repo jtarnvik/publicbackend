@@ -260,12 +260,16 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 
 ## Scheduled Jobs
 
-Both jobs run at midnight daily (`0 0 0 * * *`). Live in `{{BASE_PACKAGE}}.port.incoming.scheduled`.
+Live in `{{BASE_PACKAGE}}.port.incoming.scheduled`.
 
-| Class | What it does |
-|---|---|
-| `PendingUserCleanupJob` | Deletes `pending_user` rows older than 7 days (users who failed OAuth2 login and never requested access) |
-| `DeviationInterpretationCleanupJob` | Archives `deviation_interpretations` rows older than 28 days to `deviation_history`, then deletes them along with their `deviation_interpretation_errors` rows |
+| Class | Schedule | What it does |
+|---|---|---|
+| `PendingUserCleanupJob` | `0 0 0 * * *` | Deletes `pending_user` rows older than 7 days (users who failed OAuth2 login and never requested access) |
+| `DeviationInterpretationCleanupJob` | `0 0 0 * * *` | Archives `deviation_interpretations` rows older than 28 days to `deviation_history`, then deletes them along with their `deviation_interpretation_errors` rows |
+| `DashboardRefreshJob` | `0 0 * * * *` | Repaints the terminal dashboard hourly. The only clock in that feature — see the Terminal dashboard section |
+
+`spring.task.scheduling.pool.size=3`: the memory monitor and the dashboard refresh must both be
+able to run while the GTFS pipeline holds a thread for a long stretch.
 
 ---
 
@@ -432,6 +436,59 @@ The start script does **not** pipe through `tee` — logback owns the file. Pipi
 a pipe rather than a TTY, and the terminal dashboard needs a real terminal to detect a usable
 screen. The CONSOLE appender is declared explicitly (rather than left to Boot's programmatic
 default) so the dashboard can detach it by a name this project owns when it takes over the screen.
+
+### Terminal dashboard
+
+Under `production` the backend draws a status board on the terminal it was started from, in
+`{{BASE_PACKAGE}}.port.outgoing.terminal` (jline). Modelled on the `overlord` project's dashboard,
+with the notification mechanism rebuilt on Spring events.
+
+**One thread owns the screen.** Every terminal write happens on a single virtual render thread.
+Event listeners and the WINCH handler never draw — they set a flag and wake it via a capacity-1
+queue, so a burst of events collapses into one repaint. This is not a poll loop: the thread blocks
+on `take()` and consumes nothing while idle. The reason it exists rather than `@Async` listeners is
+`printAt`, which addresses the cursor and then writes as two calls — two threads interleaving those
+pairs would print each other's text at each other's coordinates.
+
+**Event-driven, with one clock.** Listeners are synchronous and do no I/O, so they cannot block the
+publisher (an HTTP request thread for user activity, the poll-loop virtual thread for realtime
+state).
+
+| Event | Published by | Listener phase |
+|---|---|---|
+| `RealtimePollingStateChangedEvent` | `GtfsRealtimeService.GtfsRealtimeCache` start/stop | `@EventListener` (no transaction) |
+| `UserActivityEvent` | `AllowedUserService.recordLogin()` | `@TransactionalEventListener(AFTER_COMMIT)` — the repaint recounts, and inside the transaction that count could read pre-commit state |
+
+`DashboardRefreshJob` covers the one thing no event can: a user leaves the 14-day active window
+because time passed, and nothing runs at that moment to say so.
+
+**Items** live in `…/terminal/items`, are ordinary `@Component`s ordered by `@Order`, and are
+assigned a start row by `DashboardService` from each item's `rowCount()` — inserting one never
+requires editing its neighbours. `refresh()` is for expensive state (a query) and runs only on
+data events; `redraw()` also runs on a bare resize and must stay cheap. Current items: `VersionItem`
+(`BuildProperties`), `RealtimePollingItem`, `ActiveUsersItem`.
+
+**Console logging is detached** once the board is up, by removing the `CONSOLE` appender named in
+`logback-spring.xml`. It stays attached through startup on purpose: a deployment that fails before
+`ApplicationReadyEvent` still prints diagnostics to the terminal, and since the board lives in the
+alternate screen buffer that output is still there after exit.
+
+**Shutdown needs two paths, and both were verified rather than assumed.**
+
+*A SIGINT handler is mandatory.* Building a jline **system** terminal installs native signal
+handlers, and those take SIGINT away from the JVM. Measured: without a handler, Ctrl-C kills the
+process with no shutdown hook, no bean destruction and no terminal restore, leaving the shell on
+the alternate screen with an invisible cursor — needing a manual `reset`. `DashboardService`
+therefore handles `Signal.INT` and closes the context explicitly. SIGTERM is unaffected and still
+goes through Spring's shutdown hook, so both routes end in `@PreDestroy`.
+
+*The restore is written to `System.out`, not through the jline terminal.* By the time bean
+destruction runs the terminal can already be closed, and writing through it throws "Terminal has
+been closed". The escape sequence is resolved from terminfo at startup — while the terminal is
+definitely open — and replayed at shutdown, with xterm-family fallbacks if terminfo has no entry.
+
+If the terminal is not usable — stdout piped or redirected, type `dumb`, zero columns — the board
+disables itself, logs why, and leaves console logging alone.
 
 ### Version at runtime
 
