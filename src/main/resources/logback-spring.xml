@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+  Logging configuration.
+
+  Deliberately thin: it imports Spring Boot's own console/file appender definitions rather than
+  restating the patterns and rolling policy, so an upgrade cannot leave this file rendering log
+  lines in a format nothing else in the project uses. The file path and rolling limits are set as
+  ordinary properties in application-production.properties, not here.
+
+  Why the CONSOLE appender is declared explicitly instead of relying on Boot's programmatic
+  default: the terminal dashboard detaches it by name when it takes over the screen. Declaring it
+  here makes "CONSOLE" a name this project owns rather than an internal Boot detail.
+
+  Note that under `production` BOTH appenders are attached. Startup output stays visible on the
+  terminal — which is where you look when a deployment fails — and the dashboard only silences the
+  console once it has successfully entered the alternate screen buffer.
+
+  No NopStatusListener is installed on purpose: logback reports its own configuration problems at
+  WARN/ERROR, and that is exactly the output worth seeing when this file is wrong.
+-->
+<configuration>
+
+  <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+  <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+  <springProfile name="production">
+    <!-- Requires LOG_FILE, which Boot derives from logging.file.name. -->
+    <include resource="org/springframework/boot/logging/logback/file-appender.xml"/>
+
+    <root level="INFO">
+      <appender-ref ref="CONSOLE"/>
+      <appender-ref ref="FILE"/>
+    </root>
+  </springProfile>
+
+  <springProfile name="!production">
+    <root level="INFO">
+      <appender-ref ref="CONSOLE"/>
+    </root>
+  </springProfile>
+
+</configuration>

@@ -392,10 +392,53 @@ the same variable names Render uses resolve the `${DB_URL}`-style placeholders i
 out from under a running instance. `deployment/bin`, `deployment/logs`, `deployment/*.env` and
 `release/` are gitignored.
 
-**No profile is activated** — the deployment runs on the defaults in `application.properties`,
-which is why the default `server.port` is **8081**; `application-local.properties` overrides it back
-to 8080 so development keeps the OAuth2 redirect URI already registered with Google. `local` and
-`travel` are the only profiles and both are development-only.
+### Profiles
+
+Four profiles, and every one of them is named. There is no unprofiled mode.
+
+| Profile | Where | Properties file | Tracked in git |
+|---|---|---|---|
+| `production` | Mac Mini deployment, set by `start-publicbackend.sh` | `application-production.properties` | yes |
+| `local` | Development on the dev machine | `application-local.properties` | no (secrets) |
+| `travel` | Development away from the home network | `application-travel.properties` | no (secrets) |
+| `test` | Integration tests (`@ActiveProfiles("test")`) | `src/test/resources/application-test.properties` | yes |
+
+*Why `production` is explicit rather than "no profile active"* (which is what it was until the
+terminal dashboard work): deployment-only behaviour then gates **positively** — `@Profile("production")`,
+`<springProfile name="production">`. The alternative was `!local & !travel & !test`, a negation that
+every future development profile would have to be added to, in Java annotations and in
+`logback-spring.xml`, forever — and which is *true* under the integration tests, so anything gated
+that way would try to start during a test run.
+
+`server.port` deliberately stays at **8081** in `application.properties` rather than moving into
+`application-production.properties`: it is the default so that a deployment accidentally started
+without the profile still binds the deployed port instead of silently falling back to Boot's 8080.
+`application-local.properties` overrides it to 8080 so development keeps the OAuth2 redirect URI
+already registered with Google.
+
+### Logging
+
+`logback-spring.xml` imports Spring Boot's own `defaults.xml` / `console-appender.xml` /
+`file-appender.xml` rather than restating patterns and rolling policy. Under `production` both
+CONSOLE and FILE are attached; under every other profile, CONSOLE only.
+
+The file path and rolling limits are properties, not XML: `logging.file.name` in
+`application-production.properties` resolves `${FOLDER_BASE}/logs/publicbackend.log`, where
+`FOLDER_BASE` is exported by `start-publicbackend.sh`. That is the same path `just logs` tails.
+Setting `logging.file.name` is also what *activates* the FILE appender, since Boot's
+`file-appender.xml` reads the `LOG_FILE` derived from it.
+
+The start script does **not** pipe through `tee` — logback owns the file. Piping would make stdout
+a pipe rather than a TTY, and the terminal dashboard needs a real terminal to detect a usable
+screen. The CONSOLE appender is declared explicitly (rather than left to Boot's programmatic
+default) so the dashboard can detach it by a name this project owns when it takes over the screen.
+
+### Version at runtime
+
+The `build-info` goal of `spring-boot-maven-plugin` generates `META-INF/build-info.properties`,
+which Boot auto-configures into a `BuildProperties` bean — inject it to read the running version.
+Preferred over a filtered `version.properties`: no resource-filtering configuration, and it cannot
+drift out of step with the pom.
 
 Note that the GTFS in-memory dataset is still gated on the `local` profile
 (`GtfsAccessService.rebuildDataset()`, see I5 in the frontend `CLAUDE.md`) — that gate has to be

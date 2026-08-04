@@ -29,8 +29,12 @@ fi
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 
-# No profile is activated: the deployment runs on the defaults in application.properties.
-# `local` and `travel` are the only profiles, and both are development-only.
+# The deployment runs under the `production` profile. It is activated here rather than left at
+# the defaults so that deployment-only behaviour can be gated positively — @Profile("production"),
+# <springProfile name="production"> — instead of by a negation list that would have to name every
+# development profile forever. `local` and `travel` are development profiles, `test` is used by the
+# integration tests.
+export SPRING_PROFILES_ACTIVE=production
 
 # Overridable from publicbackend.env
 JAVA_OPTS="${JAVA_OPTS:--Xmx2g}"
@@ -39,9 +43,15 @@ mkdir -p "$FOLDER_BASE/logs"
 
 echo "Starting publicbackend..."
 echo "  deployment dir : $FOLDER_BASE"
-echo "  profile        : (default)"
+echo "  profile        : $SPRING_PROFILES_ACTIVE"
 echo "  java opts      : $JAVA_OPTS"
 echo "  log            : $LOG_FILE"
 
+# Writing to $LOG_FILE is logback's job (see logback-spring.xml and logging.file.name in
+# application-production.properties), NOT tee's. Piping through tee would make stdout a pipe
+# rather than a terminal, and the terminal dashboard needs a real TTY to detect a usable screen.
+#
+# exec replaces this shell with the JVM so that Ctrl-C reaches the JVM directly — the dashboard
+# installs a SIGINT handler to restore the terminal before exiting.
 # shellcheck disable=SC2086
-java $JAVA_OPTS -jar publicbackend.jar 2>&1 | tee -a "$LOG_FILE"
+exec java $JAVA_OPTS -jar publicbackend.jar

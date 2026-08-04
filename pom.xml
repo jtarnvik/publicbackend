@@ -182,6 +182,20 @@
                         </exclude>
                     </excludes>
                 </configuration>
+                <executions>
+                    <!--
+                      Generates META-INF/build-info.properties, which Boot auto-configures into a
+                      BuildProperties bean. That bean is how the running version is obtained at
+                      runtime — preferred over a filtered version.properties because it needs no
+                      resource filtering and cannot silently disagree with the pom.
+                    -->
+                    <execution>
+                        <id>build-info</id>
+                        <goals>
+                            <goal>build-info</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <!--
               Generates build.just from build.just.template, substituting the project version.
