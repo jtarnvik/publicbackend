@@ -268,12 +268,17 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 
 ## Scheduled Jobs
 
-Live in `{{BASE_PACKAGE}}.port.incoming.scheduled`.
+Live in `{{BASE_PACKAGE}}.port.incoming.scheduled`. **This table is the complete list** — keep it that
+way when adding a job. It was incomplete once, and the missing `SharedRouteCleanupJob` led to a
+`shared_route` row count being read as migration data loss when it was just the retention window.
 
 | Class | Schedule | What it does |
 |---|---|---|
 | `PendingUserCleanupJob` | `0 0 0 * * *` | Deletes `pending_user` rows older than 7 days (users who failed OAuth2 login and never requested access) |
 | `DeviationInterpretationCleanupJob` | `0 0 0 * * *` | Archives `deviation_interpretations` rows older than 28 days to `deviation_history`, then deletes them along with their `deviation_interpretation_errors` rows |
+| `SharedRouteCleanupJob` | `0 0 0 * * *` | Deletes `shared_route` rows older than 1 day. Share links are deliberately short-lived — a journey is stale within hours. Note the `ROUTES_SHARED` statistic is an all-time creation counter and never decremented, so it will always exceed the row count; the two are not comparable |
+| `GtfsDownloadJob` | `0 0 5 * * *` (Europe/Stockholm) + `ApplicationReadyEvent` | Runs the GTFS pipeline. A second method at `0 0 0 * * *` prunes old `gtfs_download_log` entries. `@Profile("!test")` |
+| `JvmMemoryMonitorJob` | every 10 min (`fixedRate`) | Logs heap, non-heap and old-gen — see I1 in the frontend `CLAUDE.md` for what the numbers meant on Render |
 | `DashboardRefreshJob` | `0 0 * * * *` | Repaints the terminal dashboard hourly. The only clock in that feature — see the Terminal dashboard section |
 
 `spring.task.scheduling.pool.size=3`: the memory monitor and the dashboard refresh must both be

@@ -47,3 +47,9 @@ deployment/bin/
 deployment/logs/
 deployment/*.env
 pom.xml.versionsBackup
+
+# Infrastructure notes. This repo is PUBLIC, and the manual records the home WAN IP, the UniFi
+# port-forwarding rule and the Cloudflare account id. The WAN IP is the one that matters: the
+# api2 DNS record is proxied specifically so the origin address stays hidden, and publishing it
+# would undo that. Kept on local disk only.
+commuter-infra-manual.md
