@@ -497,9 +497,9 @@ which Boot auto-configures into a `BuildProperties` bean — inject it to read t
 Preferred over a filtered `version.properties`: no resource-filtering configuration, and it cannot
 drift out of step with the pom.
 
-Note that the GTFS in-memory dataset is still gated on the `local` profile
-(`GtfsAccessService.rebuildDataset()`, see I5 in the frontend `CLAUDE.md`) — that gate has to be
-widened before live traffic works on the Mini.
+The GTFS in-memory dataset used to be gated on the `local` profile, which is why live traffic never
+worked on Render. That gate is gone on this branch — see I5 in the frontend `CLAUDE.md` for why it
+existed and why merging this branch to `main` while Render still runs would bring the OOM kills back.
 
 ## Database development
 
