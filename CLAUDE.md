@@ -124,7 +124,8 @@ Authentication flow:
 | `DB_URL` | `jdbc:postgresql://aws-1-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require` |
 | `DB_USERNAME` | `postgres.<project-ref>` |
 | `DB_PASSWORD` | Supabase database password |
-| `FRONTEND_URL` | `https://jtarnvik.github.io` |
+| `FRONTEND_URL` | `https://jtarnvik.github.io` — single url, the OAuth2 redirect target |
+| `ALLOWED_ORIGINS` | Optional. Comma-separated CORS allowlist; defaults to `FRONTEND_URL` alone |
 | `ANTHROPIC_API_KEY` | API key for Claude AI deviation interpretation |
 | `PUSHOVER_API_TOKEN` | Pushover app token for error notifications |
 | `PUSHOVER_USER_KEY` | Pushover user key for error notifications |
@@ -221,7 +222,14 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 - All `/api/**` paths return 401 for unauthenticated requests instead of redirecting to OAuth2 login (configured via `exceptionHandling().defaultAuthenticationEntryPointFor()` with `PathPatternRequestMatcher`)
 - `/api/protected/**` requires authentication
 - CSRF disabled (SPA + CORS provides equivalent protection)
-- CORS configured for `${FRONTEND_URL}` only, credentials allowed
+- CORS configured for `${ALLOWED_ORIGINS}`, credentials allowed. Deliberately separate from
+  `app.frontend-url`: that one is a *single* url because it is the OAuth2 redirect target, while CORS has
+  to admit *several* origins at once — the deployed frontend plus a dev server pointed at the same backend.
+  Defaults to `app.frontend-url`, so profiles that set only the latter are unaffected.
+  `SecurityConfig.parseAllowedOrigins()` trims each entry and rejects an empty list at startup: Spring's
+  `CorsFilter` runs ahead of the security chain, so a bad allowlist surfaces as a bare
+  `403 Invalid CORS request` on *every* endpoint, which reads like a dead backend rather than a config
+  error. Covered by `CorsAllowedOriginsTest`
 - Logout at `POST /api/auth/logout` — invalidates session, clears cookie, redirects to `/ping`
 
 ---

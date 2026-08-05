@@ -27,6 +27,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -38,17 +39,38 @@ public class SecurityConfig {
   private final PushoverProvider pushoverProvider;
   private final OidcRoleEnrichmentService oidcRoleEnrichmentService;
   private final String frontendUrl;
+  private final List<String> allowedOrigins;
 
   public SecurityConfig(AllowedUserService allowedUserService,
                         PendingUserService pendingUserService,
                         PushoverProvider pushoverProvider,
                         OidcRoleEnrichmentService oidcRoleEnrichmentService,
-                        @Value("${app.frontend-url}") String frontendUrl) {
+                        @Value("${app.frontend-url}") String frontendUrl,
+                        @Value("${app.allowed-origins}") String allowedOrigins) {
     this.allowedUserService = allowedUserService;
     this.pendingUserService = pendingUserService;
     this.pushoverProvider = pushoverProvider;
     this.oidcRoleEnrichmentService = oidcRoleEnrichmentService;
     this.frontendUrl = frontendUrl;
+    this.allowedOrigins = parseAllowedOrigins(allowedOrigins);
+  }
+
+  /**
+   * Splits the comma-separated {@code app.allowed-origins} value.
+   * <p>
+   * Fails fast on an empty result rather than starting with an empty allowlist: Spring's {@code CorsFilter}
+   * runs before the security chain, so every cross-origin call would be rejected with a bare
+   * {@code 403 Invalid CORS request} that never reaches a controller and looks nothing like a config error.
+   */
+  private static List<String> parseAllowedOrigins(String rawValue) {
+    List<String> origins = Arrays.stream(rawValue.split(","))
+      .map(String::trim)
+      .filter(origin -> !origin.isEmpty())
+      .toList();
+    if (origins.isEmpty()) {
+      throw new IllegalStateException("app.allowed-origins must contain at least one origin");
+    }
+    return origins;
   }
 
   @Bean
@@ -94,7 +116,7 @@ public class SecurityConfig {
   @Bean
   public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration configuration = new CorsConfiguration();
-    configuration.setAllowedOrigins(List.of(frontendUrl));
+    configuration.setAllowedOrigins(allowedOrigins);
     configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
     configuration.setAllowedHeaders(List.of("*"));
     configuration.setAllowCredentials(true);
