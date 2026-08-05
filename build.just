@@ -7,7 +7,7 @@
 # build.just is committed on purpose: the deploy machine checks out a tag and runs `just build`
 # immediately, so the jar name for that exact version has to be present in the tag.
 
-jar_version := "1.1.2"
+jar_version := "1.2.0"
 jar_name := "publicbackend-" + jar_version + ".jar"
 
 # Clean, build and assemble release/
