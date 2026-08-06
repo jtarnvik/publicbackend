@@ -210,6 +210,107 @@ class SettingsFlowTest {
       .andExpect(jsonPath("$.settings.favouriteStops[0].stopName").value("Åkeshov"));
   }
 
+  // --- PUT /api/protected/settings/live-traffic-view ---
+
+  private void putLiveTrafficView(String body) throws Exception {
+    mockMvc.perform(put("/api/protected/settings/live-traffic-view")
+        .with(oauth2Login().attributes(attrs -> attrs.put("email", TEST_EMAIL)))
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(body))
+      .andExpect(status().isOk());
+  }
+
+  /** Map.of cannot hold a null focused, hence the raw JSON. */
+  private static String liveTrafficViewBody(String transportMode, int routeGroup, Boolean focused) {
+    return "{\"transportMode\":\"%s\",\"routeGroup\":%d,\"focused\":%s}"
+      .formatted(transportMode, routeGroup, focused == null ? "null" : focused.toString());
+  }
+
+  @Test
+  void saveLiveTrafficView_withoutAuth_returns401() throws Exception {
+    mockMvc.perform(put("/api/protected/settings/live-traffic-view")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(liveTrafficViewBody("TRAIN", 1, true)))
+      .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void saveLiveTrafficView_withNoExistingSettingsRow_createsRowWithView() throws Exception {
+    assertThat(userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL)).isEmpty();
+
+    putLiveTrafficView(liveTrafficViewBody("TRAIN", 1, false));
+
+    UserSettings settings = userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL).orElseThrow();
+    assertThat(settings.getLiveTrafficTransportMode()).isEqualTo("TRAIN");
+    assertThat(settings.getLiveTrafficRouteGroup()).isEqualTo(1);
+    assertThat(settings.getLiveTrafficFocused()).isFalse();
+  }
+
+  /**
+   * The one that matters: selecting a group whose focus switch is locked sends focused null, and that must
+   * leave the remembered flag alone. Otherwise picking the metro would turn the train's focus back on.
+   */
+  @Test
+  void saveLiveTrafficView_withNullFocused_leavesStoredFlagUnchanged() throws Exception {
+    putLiveTrafficView(liveTrafficViewBody("TRAIN", 1, false));
+
+    putLiveTrafficView(liveTrafficViewBody("METRO", 1, null));
+
+    UserSettings settings = userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL).orElseThrow();
+    assertThat(settings.getLiveTrafficTransportMode()).isEqualTo("METRO");
+    assertThat(settings.getLiveTrafficFocused()).isFalse();
+  }
+
+  /** The live traffic view writes on every change, so it must stay out of the settings dialog's columns. */
+  @Test
+  void saveLiveTrafficView_doesNotClobberOtherSettings() throws Exception {
+    putSettings(settingsBody("[" + favourite("9021001001241000", "Åkeshov") + "]"));
+    postRecentStop("1001", "Första hållplatsen");
+
+    putLiveTrafficView(liveTrafficViewBody("BUS", 2, null));
+
+    UserSettings settings = userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL).orElseThrow();
+    assertThat(settings.getStopPointId()).isEqualTo("9091001000003715");
+    assertThat(settings.getFavouriteStops()).hasSize(1);
+    assertThat(settings.getRecentStops()).hasSize(1);
+    assertThat(settings.getLiveTrafficTransportMode()).isEqualTo("BUS");
+  }
+
+  /** Conversely, the settings dialog must not wipe the remembered view. */
+  @Test
+  void saveSettings_doesNotClobberLiveTrafficView() throws Exception {
+    putLiveTrafficView(liveTrafficViewBody("TRAIN", 1, false));
+
+    putSettings(settingsBody(null));
+
+    UserSettings settings = userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL).orElseThrow();
+    assertThat(settings.getLiveTrafficTransportMode()).isEqualTo("TRAIN");
+    assertThat(settings.getLiveTrafficFocused()).isFalse();
+  }
+
+  @Test
+  void me_returnsLiveTrafficView() throws Exception {
+    putLiveTrafficView(liveTrafficViewBody("TRAIN", 1, false));
+
+    mockMvc.perform(get("/api/auth/me")
+        .with(oauth2Login().attributes(attrs -> attrs.put("email", TEST_EMAIL))))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.settings.liveTrafficView.transportMode").value("TRAIN"))
+      .andExpect(jsonPath("$.settings.liveTrafficView.routeGroup").value(1))
+      .andExpect(jsonPath("$.settings.liveTrafficView.focused").value(false));
+  }
+
+  /** Nothing saved yet means no view to restore — the frontend then picks its own default. */
+  @Test
+  void me_withNoSavedView_returnsNullLiveTrafficView() throws Exception {
+    putSettings(settingsBody(null));
+
+    mockMvc.perform(get("/api/auth/me")
+        .with(oauth2Login().attributes(attrs -> attrs.put("email", TEST_EMAIL))))
+      .andExpect(status().isOk())
+      .andExpect(jsonPath("$.settings.liveTrafficView.transportMode").doesNotExist());
+  }
+
   // --- POST /api/protected/settings/recent-stops ---
 
   @Test

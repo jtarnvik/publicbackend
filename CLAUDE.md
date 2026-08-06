@@ -288,6 +288,7 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 | GET | `/api/protected/gtfs/route-group-stops` | User | Every stop of every route group, for the favourite stop picker. Empty when the GTFS dataset is not loaded |
 | GET | `/api/protected/gtfs/route-data` | User | Live data for one route group. Params: `transportMode`, `routeGroup`, `focused` (forced true for `onlyFocused` groups). Returns `RouteDataResponse`: `status`, `liveTrip` (the stop chain, cropped when focused, sent once), `vehicles` rebased onto it, and `focus` (truncation flags + approaching counts) |
 | PUT | `/api/protected/settings` | User | Save stop point settings and favourite stops. `favouriteStops` null means unchanged, `[]` clears |
+| PUT | `/api/protected/settings/live-traffic-view` | User | Remember the live traffic view's route group and focus switch. `focused` null means unchanged — sent by groups whose switch is locked. Separate from `/settings` so the two cannot overwrite each other's columns |
 | DELETE | `/api/protected/account` | User | Delete own account (cascade removes all data, invalidates session). Returns 409 if last admin. |
 | POST | `/api/protected/deviations/interpret` | User | Interpret a list of deviation texts via Claude AI |
 | POST | `/api/protected/deviations/{id}/hide` | User | Hide a deviation by its DB id |

@@ -78,6 +78,27 @@ public class UserSettingsService {
     return sanitized;
   }
 
+  /**
+   * Remembers what the live traffic view was showing. Called on every change there, so it must not disturb
+   * anything the settings dialog owns — hence its own endpoint and its own columns.
+   * <p>
+   * {@code focused} null means the switch was locked for that group and therefore says nothing about what
+   * the user wants; the stored flag is left alone. Overwriting it would let merely selecting the metro
+   * (locked focused-on) silently turn the train's remembered focus on too.
+   */
+  @Transactional
+  public void saveLiveTrafficView(AllowedUser user, String transportMode, int routeGroup, Boolean focused) {
+    UserSettings settings = userSettingsRepository.findByAllowedUserEmail(user.getEmail())
+      .orElseGet(UserSettings::new);
+    settings.setAllowedUser(user);
+    settings.setLiveTrafficTransportMode(transportMode);
+    settings.setLiveTrafficRouteGroup(routeGroup);
+    if (focused != null) {
+      settings.setLiveTrafficFocused(focused);
+    }
+    userSettingsRepository.save(settings);
+  }
+
   @Transactional
   public void addRecentStop(AllowedUser user, String stopPointId, String stopPointName, String stopPointParentName) {
     UserSettings settings = userSettingsRepository.findByAllowedUserEmail(user.getEmail())

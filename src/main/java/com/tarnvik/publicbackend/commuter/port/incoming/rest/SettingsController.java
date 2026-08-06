@@ -3,6 +3,7 @@ package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 import com.tarnvik.publicbackend.commuter.model.domain.FavouriteStop;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.AllowedUser;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.FavouriteStopRequest;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.LiveTrafficViewRequest;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.RecentStopRequest;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.SettingsRequest;
 import com.tarnvik.publicbackend.commuter.service.UserSettingsService;
@@ -39,6 +40,12 @@ public class SettingsController {
     return requested.stream()
       .map(stop -> new FavouriteStop(stop.stopId(), stop.stopName()))
       .toList();
+  }
+
+  @PutMapping("/settings/live-traffic-view")
+  public ResponseEntity<Void> saveLiveTrafficView(AllowedUser user, @Valid @RequestBody LiveTrafficViewRequest request) {
+    userSettingsService.saveLiveTrafficView(user, request.transportMode(), request.routeGroup(), request.focused());
+    return ResponseEntity.ok().build();
   }
 
   @PostMapping("/settings/recent-stops")

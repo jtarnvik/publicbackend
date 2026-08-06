@@ -1,5 +1,7 @@
 package com.tarnvik.publicbackend.commuter.service;
 
+import com.tarnvik.publicbackend.commuter.model.domain.entity.UserSettings;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.LiveTrafficViewResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.MeResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.SettingsResponse;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +43,7 @@ public class AuthService {
         .useAiInterpretation(s.isUseAiInterpretation())
         .recentStops(s.getRecentStops())
         .favouriteStops(s.getFavouriteStops())
+        .liveTrafficView(toLiveTrafficView(s))
         .build())
       .orElse(DEFAULT_SETTINGS);
 
@@ -50,6 +53,21 @@ public class AuthService {
       oauth2User.getAttribute("picture"),
       role,
       settings
+    );
+  }
+
+  /**
+   * Null unless a group was actually stored. The focus flag rides along as-is, including its own null,
+   * which the view reads as "use this group's default" rather than as "unfocused".
+   */
+  private static LiveTrafficViewResponse toLiveTrafficView(UserSettings settings) {
+    if (settings.getLiveTrafficTransportMode() == null || settings.getLiveTrafficRouteGroup() == null) {
+      return null;
+    }
+    return new LiveTrafficViewResponse(
+      settings.getLiveTrafficTransportMode(),
+      settings.getLiveTrafficRouteGroup(),
+      settings.getLiveTrafficFocused()
     );
   }
 }

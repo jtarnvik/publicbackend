@@ -60,6 +60,26 @@ public class UserSettings {
   @Column(name = "favourite_stops", columnDefinition = "TEXT")
   private List<FavouriteStop> favouriteStops = new ArrayList<>();
 
+  /**
+   * The route group the live traffic view showed last, as a {@link TransportMode} name plus its group
+   * number. Kept as a String rather than the enum: the value is only ever matched against the route groups
+   * currently served, so one that has left {@code gtfs_monitored_route} needs to miss quietly, not fail to
+   * deserialize.
+   */
+  @Column(name = "live_traffic_transport_mode")
+  private String liveTrafficTransportMode;
+
+  @Column(name = "live_traffic_route_group")
+  private Integer liveTrafficRouteGroup;
+
+  /**
+   * The focus switch position, or null if the user has never operated it. Null is not the same as false —
+   * it means "fall back to the group's default", which is focused-on for every group that has a window.
+   * Only written for groups where the switch is actually operable; see {@code UserSettingsService}.
+   */
+  @Column(name = "live_traffic_focused")
+  private Boolean liveTrafficFocused;
+
   @CreationTimestamp
   @Column(name = "create_date", updatable = false)
   private LocalDateTime createDate;

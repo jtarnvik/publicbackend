@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.0.xsd">
+
+    <!--
+      The live traffic view's own state: which route group was last looked at, and whether the focus switch
+      was on. Restored when the view is opened, so it no longer always falls back to bus 117.
+
+      All three columns are nullable, and live_traffic_focused deliberately so rather than
+      NOT NULL DEFAULT false. Null means "the user has never chosen", which is what lets an existing user
+      keep the focused-by-default train view instead of being silently switched to the unfocused one on the
+      first release after this change.
+
+      transport_mode is stored as the enum name in a plain VARCHAR rather than a typed reference. The
+      restore path matches it against the route groups the backend currently serves, so a group that has
+      left gtfs_monitored_route simply fails to match and the default is used — no foreign key needed, and
+      no way for a stale value to break a settings load.
+
+      No row level security block here — that rule applies to changesets that create a table, and
+      user_settings already has RLS enabled from the changeset that created it.
+    -->
+    <changeSet id="041-1" author="jesper">
+        <addColumn tableName="user_settings">
+            <column name="live_traffic_transport_mode" type="VARCHAR(32)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="live_traffic_route_group" type="INT">
+                <constraints nullable="true"/>
+            </column>
+            <column name="live_traffic_focused" type="BOOLEAN">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

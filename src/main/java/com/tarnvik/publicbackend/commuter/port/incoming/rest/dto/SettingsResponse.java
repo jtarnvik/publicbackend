@@ -22,4 +22,6 @@ public class SettingsResponse {
   boolean useAiInterpretation;
   List<RecentStop> recentStops;
   List<FavouriteStop> favouriteStops;
+  /** Null until the user has opened the live traffic view and changed something. */
+  LiveTrafficViewResponse liveTrafficView;
 }
