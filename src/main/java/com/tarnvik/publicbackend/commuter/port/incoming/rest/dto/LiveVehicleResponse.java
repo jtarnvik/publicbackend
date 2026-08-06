@@ -3,6 +3,8 @@ package com.tarnvik.publicbackend.commuter.port.incoming.rest.dto;
 import lombok.Builder;
 import lombok.Value;
 
+import java.util.List;
+
 /**
  * One vehicle as the live traffic view sees it.
  * <p>
@@ -29,4 +31,10 @@ public class LiveVehicleResponse {
   int segIdx;
   double segmentFraction;
   double distanceMetres;
+  /**
+   * When this vehicle is due to leave each chain stop still ahead of it, in the order it reaches them.
+   * Stops its own trip does not call at are absent, so a short turn simply stops predicting at its real
+   * terminus. Empty when the times could not be worked out.
+   */
+  List<StopPredictionResponse> stopPredictions;
 }

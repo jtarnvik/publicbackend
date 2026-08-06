@@ -22,7 +22,7 @@ import java.util.List;
  * {@code direction} — both are plain direction ids, so the comparison belongs wherever the two are in hand.
  */
 @Value
-@Builder
+@Builder(toBuilder = true)
 public class LiveVehicle {
   /** The raw realtime report from the GTFS-RT feed. */
   GtfsVehiclePosition position;
@@ -32,6 +32,14 @@ public class LiveVehicle {
 
   /** The static trip the vehicle is running, including its own ordered stop times. */
   GtfsTripInfo trip;
+
+  /**
+   * When this vehicle is expected to leave each chain stop it has still to reach, in the order it reaches
+   * them. Empty when the times could not be worked out — see
+   * {@link com.tarnvik.publicbackend.commuter.service.util.GtfsPredictionUtil}.
+   */
+  @Builder.Default
+  List<StopPrediction> stopPredictions = List.of();
 
   /**
    * Where this vehicle actually terminates, which is not necessarily the end of the group's chain — short

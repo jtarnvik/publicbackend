@@ -283,10 +283,10 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 | POST | `/api/public/access-request` | Public | Submit an access request |
 | GET | `/api/auth/me` | Optional | Returns user info (with settings) or 401 |
 | POST | `/api/auth/logout` | Optional | Clears session and cookie |
-| GET | `/api/protected/gtfs/route-groups` | User | List selectable monitored route groups (transportMode, routeGroup, displayName) |
+| GET | `/api/protected/gtfs/route-groups` | User | List selectable monitored route groups (transportMode, routeGroup, displayName, `lines`) |
 | GET | `/api/protected/gtfs/status` | User | GTFS data availability: `date`, `status` (enum name), `staticDataAvailable` (derived from in-memory dataset) |
 | GET | `/api/protected/gtfs/route-group-stops` | User | Every stop of every route group, for the favourite stop picker. Empty when the GTFS dataset is not loaded |
-| GET | `/api/protected/gtfs/route-data` | User | Live data for one route group. Params: `transportMode`, `routeGroup`, `focused` (forced true for `onlyFocused` groups). Returns `RouteDataResponse`: `status`, `liveTrip` (the stop chain, cropped when focused, sent once), `vehicles` rebased onto it, and `focus` (truncation flags + approaching counts) |
+| GET | `/api/protected/gtfs/route-data` | User | Live data for one route group. Params: `transportMode`, `routeGroup`, `focused` (forced true for `onlyFocused` groups). Returns `RouteDataResponse`: `status`, `liveTrip` (the stop chain, cropped when focused, sent once), `vehicles` rebased onto it — each with `stopPredictions` for the stops still ahead of it — and `focus` (truncation flags + approaching counts) |
 | PUT | `/api/protected/settings` | User | Save stop point settings and favourite stops. `favouriteStops` null means unchanged, `[]` clears |
 | PUT | `/api/protected/settings/live-traffic-view` | User | Remember the live traffic view's route group and focus switch. `focused` null means unchanged — sent by groups whose switch is locked. Separate from `/settings` so the two cannot overwrite each other's columns |
 | DELETE | `/api/protected/account` | User | Delete own account (cascade removes all data, invalidates session). Returns 409 if last admin. |

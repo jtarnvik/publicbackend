@@ -4,10 +4,12 @@ import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveStop;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveTrip;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveVehicle;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.RouteData;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.StopPrediction;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.LiveStopResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.LiveTripResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.LiveVehicleResponse;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.RouteDataResponse;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.StopPredictionResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -16,7 +18,7 @@ import org.mapstruct.Mapping;
  * than the view needs — a vehicle's trip alone reaches the whole route and every stop's parent station — so
  * this mapper picks out a deliberately small subset. Expect it to grow as the schematic is built.
  */
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = DateConverter.class)
 public interface RouteDataMapper {
   RouteDataResponse toResponse(RouteData routeData);
 
@@ -38,6 +40,9 @@ public interface RouteDataMapper {
   @Mapping(target = "segmentFraction", source = "location.t")
   @Mapping(target = "distanceMetres", source = "location.dist")
   LiveVehicleResponse toResponse(LiveVehicle liveVehicle);
+
+  @Mapping(target = "departure", source = "departure", qualifiedBy = EpochSeconds.class)
+  StopPredictionResponse toResponse(StopPrediction stopPrediction);
 
   LiveStopResponse toResponse(LiveStop liveStop);
 }

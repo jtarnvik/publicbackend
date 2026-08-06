@@ -16,6 +16,7 @@ import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.RouteFocus;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.samtrafiken.SamtrafikenProvider;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil.VehicleLocation;
+import com.tarnvik.publicbackend.commuter.service.util.GtfsPredictionUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -27,7 +28,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -96,13 +99,16 @@ public class GtfsRealtimeService {
         return RouteData.builder().status(STATUS_NO_STATIC_DATA).vehicles(List.of()).build();
       }
 
+      // One instant for the whole request, so every vehicle's predictions are measured against the same
+      // moment rather than drifting apart across the loop.
+      Instant now = Instant.now();
       List<LiveVehicle> located = new ArrayList<>();
       for (Map.Entry<GtfsRouteInfo, List<GtfsVehiclePosition>> entry : cached.get().entrySet()) {
         if (!matchesGroup(entry.getKey(), transportMode, routeGroup)) {
           continue;
         }
         for (GtfsVehiclePosition vp : entry.getValue()) {
-          locate(dataset, fullTrip, vp).ifPresent(located::add);
+          locate(dataset, fullTrip, vp, now).ifPresent(located::add);
         }
       }
 
@@ -179,6 +185,10 @@ public class GtfsRealtimeService {
       new ArrayList<>(fullStops.subList(range.startIdx(), range.endIdx() + 1)),
       fullTrip.getRouteVariants());
 
+    Set<String> croppedStopIds = croppedTrip.getLiveStops().stream()
+      .map(LiveStop::getStopId)
+      .collect(Collectors.toSet());
+
     List<LiveVehicle> inside = new ArrayList<>();
     int approachingAtStart = 0;
     int approachingAtEnd = 0;
@@ -186,7 +196,7 @@ public class GtfsRealtimeService {
       int segIdx = vehicle.getLocation().segIdx();
       boolean headingDown = vehicle.getTrip().getDirectionId() == fullTrip.getDirection();
       if (segIdx >= range.startIdx() && segIdx < range.endIdx()) {
-        inside.add(rebase(vehicle, range.startIdx()));
+        inside.add(rebase(vehicle, range.startIdx(), croppedStopIds));
       } else if (segIdx < range.startIdx()) {
         if (headingDown) {
           approachingAtStart++;
@@ -216,13 +226,19 @@ public class GtfsRealtimeService {
       .build();
   }
 
-  /** Shifts a vehicle's segment index from the full chain onto the cropped one. */
-  private LiveVehicle rebase(LiveVehicle vehicle, int startIdx) {
+  /**
+   * Shifts a vehicle's segment index from the full chain onto the cropped one, and drops the predictions
+   * for stops the cropped chain does not draw — they would be times against rows that are not there.
+   */
+  private LiveVehicle rebase(LiveVehicle vehicle, int startIdx, Set<String> croppedStopIds) {
     VehicleLocation location = vehicle.getLocation();
     return LiveVehicle.builder()
       .position(vehicle.getPosition())
       .location(new VehicleLocation(location.segIdx() - startIdx, location.t(), location.dist()))
       .trip(vehicle.getTrip())
+      .stopPredictions(vehicle.getStopPredictions().stream()
+        .filter(prediction -> croppedStopIds.contains(prediction.stopId()))
+        .toList())
       .build();
   }
 
@@ -235,16 +251,22 @@ public class GtfsRealtimeService {
    * Places a vehicle on the stop chain of the trip it is running. Empty when the trip is unknown, or when it
    * has fewer than two stops — a single stop has no segment to project onto.
    */
-  private Optional<LiveVehicle> locate(GtfsDataset dataset, LiveTrip liveTrip, GtfsVehiclePosition vp) {
+  private Optional<LiveVehicle> locate(GtfsDataset dataset, LiveTrip liveTrip, GtfsVehiclePosition vp,
+                                       Instant now) {
     Optional<GtfsTripInfo> maybeTrip = dataset.findTripByTripId(vp.getTripId());
     if (maybeTrip.isEmpty()) {
       return Optional.empty();
     }
     VehicleLocation location = GtfsGeometryUtil.locateOnRoute(liveTrip.getLiveStops(), vp);
-    return Optional.of(LiveVehicle.builder()
+    LiveVehicle vehicle = LiveVehicle.builder()
       .position(vp)
       .location(location)
       .trip(maybeTrip.get())
+      .build();
+    // Predicted against the full chain for the same reason the geometry is: what the caller asked to see
+    // must not change where anything is, only how much of it is sent.
+    return Optional.of(vehicle.toBuilder()
+      .stopPredictions(GtfsPredictionUtil.predict(liveTrip, vehicle, now))
       .build());
   }
 

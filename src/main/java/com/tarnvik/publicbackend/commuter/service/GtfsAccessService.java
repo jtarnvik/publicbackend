@@ -188,6 +188,7 @@ public class GtfsAccessService {
           .transportMode(key.transportMode().name())
           .routeGroup(key.routeGroup())
           .displayName(displayName(entry.getValue()))
+          .lines(lineNames(entry.getValue()))
           .focusStart(representative.getFocusStart())
           .focusEnd(representative.getFocusEnd())
           .onlyFocused(representative.isOnlyFocused())
@@ -230,10 +231,19 @@ public class GtfsAccessService {
 
   /** The group's public name: its line numbers in numeric order, e.g. "17/18/19". */
   private static String displayName(List<GtfsMonitoredRoute> group) {
+    return String.join("/", lineNames(group));
+  }
+
+  /**
+   * The group's line numbers in numeric order — the base names as configured, without variant suffixes.
+   * A caller matching a line against these must allow for a suffix the same way
+   * {@link com.tarnvik.publicbackend.commuter.service.util.GtfsNameUtil#matchesMonitoredRouteName} does.
+   */
+  private static List<String> lineNames(List<GtfsMonitoredRoute> group) {
     return group.stream()
       .map(GtfsMonitoredRoute::getRouteShortName)
       .sorted(Comparator.comparingInt(Integer::parseInt))
-      .collect(Collectors.joining("/"));
+      .toList();
   }
 
   public GtfsDataStatusResponse getDataStatus() {
