@@ -37,9 +37,13 @@ self-documenting.
 Personal Stockholm commuter dashboard backend. Handles Google OAuth2 authentication, user management (access requests, allowed users), settings persistence, and AI interpretation of SL deviation messages via the Claude API. Serves the developer and a few friends.
 
 - **Backend:** Spring Boot 4.1.0 (Java 25)
-- **Frontend:** React SPA on GitHub Pages at `https://jtarnvik.github.io/sl-dashboard/`
-- **Production hosting:** Render.com
-- **Database:** Supabase (PostgreSQL) in production, MySQL 8.x locally
+- **Frontend:** React SPA on GitHub Pages at `https://sl.tarnvik.com`
+- **Production hosting:** a Mac Mini at home, reached at `https://api2.tarnvik.com`
+- **Database:** MySQL 8.x everywhere — `commuter_prod` in Docker on the Mini, `commuter` locally
+
+Render.com and Supabase hosted the backend and its database until August 2026. Both are decommissioned and
+nothing depends on them. They are still named in a few places below where they explain a decision that
+outlived them; nowhere as a live target.
 
 ---
 
@@ -69,12 +73,20 @@ for autoconfiguration in addition to the underlying library dependency.
 ## Architecture
 
 ```
-React (GitHub Pages)
+React (GitHub Pages, sl.tarnvik.com)
         ↓ HTTPS
-Render.com (Spring Boot Docker container)
-        ↓ JDBC (PostgreSQL, SSL, connection pooler)
-Supabase (PostgreSQL)
+Cloudflare (DNS + proxy, api2.tarnvik.com)
+        ↓ HTTPS (Cloudflare origin certificate)
+Caddy on the Mac Mini, :443
+        ↓ plain HTTP, localhost only
+Spring Boot, :8081, profile `production`
+        ↓ JDBC
+MySQL in Docker on the same machine (commuter_prod)
 ```
+
+Only port 443 is open at the firewall; :8081 is never reachable from outside. Because Caddy terminates TLS
+and forwards plain HTTP, `production` sets `server.forward-headers-strategy=native` — without it Spring
+builds the OAuth2 `redirect_uri` as `http://`, and Google rejects it.
 
 Authentication flow:
 1. Frontend calls `GET /api/auth/me` silently on load
@@ -82,29 +94,31 @@ Authentication flow:
 3. Login button navigates to `/oauth2/authorization/google`
 4. Google redirects back to `/login/oauth2/code/google` (handled by Spring Security)
 5. Email whitelist check in `AuthenticationSuccessHandler`
-6. Session stored in Supabase via Spring Session JDBC
+6. Session stored in MySQL via Spring Session JDBC
 7. Browser holds `SESSION` cookie for subsequent requests
 
 ---
 
 ## Infrastructure
 
-### Render.com
-- Free tier web service (may sleep after inactivity — UptimeRobot pings `/ping` every 5 min)
-- Deployed via Dockerfile (multi-stage build: Maven build → JRE Alpine runtime image)
-- Auto-deploys on push to GitHub main branch
-- Service URL: `https://tarnvik.onrender.com`
-- Health check path: `/ping`
+### Mac Mini (production)
+- Spring Boot on :8081, profile `production`, started by `just start` — see Deployment below
+- Cloudflare proxies `api2.tarnvik.com`; Caddy on :443 terminates TLS with a Cloudflare origin certificate
+  and reverse-proxies to :8081
+- GoDNS keeps the `api2` A record pointed at the home IP
+- MySQL 8.x in Docker (container `mysql-mini`, schema `commuter_prod`), `--restart unless-stopped`, with
+  Docker Desktop starting at login
+- Health check `/ping`, monitored by UptimeRobot
+- **The backend itself runs in a foreground terminal with no launchd service.** Deliberate: the Mini is
+  stable and a manual restart after a power cut is acceptable here. MySQL is not left to the same treatment,
+  so recovery is one manual step, not two.
+- **Cloudflare gives up on a response after 100 seconds and returns 524.** That is the proxy abandoning the
+  response, not the backend failing — the job continues. Relevant to any long-running admin endpoint.
 
-### Supabase
-- Free tier PostgreSQL (no expiration unlike Render's own PostgreSQL)
-- Region: EU West (Ireland)
-- Connection via **Supavisor connection pooler** (required — direct connection is IPv6 only,
-  Render does not support IPv6)
-- Pooler host: `aws-1-eu-west-1.pooler.supabase.com`
-- Port: `5432`
-- Username format: `postgres.<project-ref>` (not just `postgres`)
-- Always use `?sslmode=require` in JDBC URL
+Host-level specifics — Caddyfile, GoDNS config, certificate paths, firewall rules, Cloudflare account
+details — are in `commuter-infra-manual.md`, which is **gitignored and local-only**: this repository is
+public and the manual records the home WAN IP, which the proxied `api2` record exists to keep hidden.
+Do not copy those details into this file.
 
 ### Local Development (MySQL)
 - MySQL 8.x at `192.168.1.204:3306`, database: `commuter`
@@ -115,20 +129,40 @@ Authentication flow:
 
 ## Environment Variables
 
-### Render (production)
+### Production (`deployment/publicbackend.env` on the Mac Mini, gitignored, `chmod 600`)
+
+Sourced by `start-publicbackend.sh`, so these resolve the `${DB_URL}`-style placeholders in
+`application.properties`. The template with the real explanations is
+`deployment/publicbackend.env.example`, which **is** committed.
+
 | Variable | Description |
 |---|---|
 | `GOOGLE_CLIENT_ID` | Google OAuth2 client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth2 client secret |
 | `ALLOWED_EMAILS` | Comma-separated whitelist of allowed email addresses |
-| `DB_URL` | `jdbc:postgresql://aws-1-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require` |
-| `DB_USERNAME` | `postgres.<project-ref>` |
-| `DB_PASSWORD` | Supabase database password |
-| `FRONTEND_URL` | `https://jtarnvik.github.io` — single url, the OAuth2 redirect target |
-| `ALLOWED_ORIGINS` | Optional. Comma-separated CORS allowlist; defaults to `FRONTEND_URL` alone |
+| `DB_URL` | `jdbc:mysql://192.168.1.204:3306/commuter_prod` |
+| `DB_USERNAME` | MySQL user (`jesper`) |
+| `DB_PASSWORD` | MySQL password |
+| `FRONTEND_URL` | `https://sl.tarnvik.com` — single url, the OAuth2 redirect target |
+| `ALLOWED_ORIGINS` | Comma-separated CORS allowlist; defaults to `FRONTEND_URL` alone |
 | `ANTHROPIC_API_KEY` | API key for Claude AI deviation interpretation |
 | `PUSHOVER_API_TOKEN` | Pushover app token for error notifications |
 | `PUSHOVER_USER_KEY` | Pushover user key for error notifications |
+| `JAVA_OPTS` | Heap and JVM flags, default `-Xmx2g` |
+
+**`FRONTEND_URL` and `ALLOWED_ORIGINS` must both name the deployed origin, and they fail differently.**
+This broke the cutover twice. A wrong `FRONTEND_URL` lands the user on the wrong host after an otherwise
+successful login. A wrong `ALLOWED_ORIGINS` gives *every* API call a bare `403 Invalid CORS request` from
+Spring's `CorsFilter`, which runs ahead of the security chain — nothing reaches a controller, so the backend
+reads as dead rather than misconfigured. A CORS error is not evidence that `FRONTEND_URL` is wrong.
+
+It also hides from local testing, because `localhost:5173` is on the allowlist — a passing `npm run dev`
+proves nothing about the deployed origin. Verify that one directly (200 = allowed, 403 = not):
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X OPTIONS https://api2.tarnvik.com/api/auth/me \
+  -H 'Origin: https://sl.tarnvik.com' -H 'Access-Control-Request-Method: GET'
+```
 
 ### Local (`application-local.properties`, never committed)
 ```properties
@@ -161,7 +195,6 @@ org.mapstruct:mapstruct
 <!-- Database -->
 spring-boot-liquibase                          <!-- SB4 autoconfiguration module -->
 org.liquibase:liquibase-core                   <!-- Liquibase classes -->
-org.postgresql:postgresql (runtime)
 com.mysql:mysql-connector-j (runtime)
 com.h2database:h2 (runtime, test profile)
 
@@ -172,6 +205,12 @@ org.springframework.session:spring-session-jdbc
 <!-- AI -->
 com.anthropic:anthropic-java
 ```
+
+**No PostgreSQL driver.** It was dropped in August 2026 with Supabase — production and local are both
+MySQL, tests are H2. The `dbms="postgresql"` changesets still in the changelog are unaffected: Liquibase
+filters them by the connected database before any driver is consulted. Restoring Postgres support would
+mean adding the driver back, not editing the changelog. See "Row Level Security" under Database
+development for why those changesets stay.
 
 ---
 
@@ -191,7 +230,9 @@ db/
 **Important:** Changeset 001 created the session tables with `BLOB` type which mapped to
 `OID` in PostgreSQL (wrong). Changeset 002 (PostgreSQL only, `dbms="postgresql"`) drops
 and recreates the tables with correct `BYTEA` type. MySQL uses `LONGBLOB` from `BLOB`
-and works correctly.
+and works correctly — which is the path every environment now takes, since nothing runs
+PostgreSQL any more. Changeset 002 is effectively dead code, kept because changesets are
+never modified or removed.
 
 When adding new changesets:
 - Never modify existing changesets — always add new ones
@@ -204,8 +245,8 @@ When adding new changesets:
 
 ## Spring Session JDBC
 
-Sessions are stored in Supabase/MySQL rather than in memory, so sessions survive
-backend redeployments. Users do not need to re-login after a Render redeploy.
+Sessions are stored in MySQL rather than in memory, so they survive a restart —
+users do not need to re-login after a redeploy.
 
 Tables: `spring_session` and `spring_session_attributes`
 Cookie name: `SESSION` (not `JSESSIONID`)
@@ -333,18 +374,19 @@ Tests use `@SpringBootTest` + `@AutoConfigureMockMvc` + `@ActiveProfiles("test")
 
 ## Deployment
 
-Two targets exist while the move off Render is in progress. The Mac Mini will **fully replace**
-Render — they are not meant to run side by side. The work lives on the branch `local_host` and is
-deliberately **not merged to `main` until Render is decommissioned**, because Render builds `main`
-and would pick up deployment-only settings (notably `server.port=8081`).
+The Mac Mini is the only deployment target. Work happens on `main`; the `local_host` branch that carried
+the move existed only while Render still built `main`, and was merged and deleted in August 2026.
 
-### Render (current production)
+**Nothing deploys on push.** There is no CI in this repository — no `.github/workflows` at all — so pushing
+`main` publishes nothing. Deployment is the tag-driven `just` flow below, run by hand on the Mini. This is
+the opposite of the frontend, where pushing `main` *is* the deploy, and the two are easy to confuse.
 
-Push to GitHub main branch → Render auto-detects and builds via Dockerfile →
-Liquibase runs migrations on startup → app serves traffic.
-
-Build command is handled entirely by the Dockerfile (multi-stage Maven build).
-No separate build command needed in Render config.
+**There is no container build.** `Dockerfile` and `.dockerignore` were Render's build mechanism and were
+deleted in August 2026 — the justfile never mentioned Docker, and `just build` shells out to plain `mvn`.
+Nothing in the project is containerised any more; the only Docker on the Mini is the MySQL container, which
+is infrastructure rather than part of this build. The JVM tuning that used to live in the `ENTRYPOINT`
+(`-XX:MaxRAMPercentage=50.0`, sized for Render's 512MB) went with it — heap is now `JAVA_OPTS` in
+`deployment/publicbackend.env`.
 
 ### Mac Mini (`just`)
 
@@ -366,9 +408,9 @@ git push && git push origin v<version>
 ```
 
 **Prerequisites on the Mini:** `just`, Maven, **JDK 25** (the LTS — deliberately not 24, which is
-end-of-life), and a PostgreSQL with the `commuter` database and the role named in `DB_URL`.
-`just build` shells out to plain `mvn`/`java`, so whichever JDK the shell resolves is the one that
-builds — with several installed, 25 has to win or the `--release 25` compile fails.
+end-of-life), and the `mysql-mini` container running with the `commuter_prod` schema and the user named
+in `DB_URL`. `just build` shells out to plain `mvn`/`java`, so whichever JDK the shell resolves is the one
+that builds — with several installed, 25 has to win or the `--release 25` compile fails.
 
 **First time only, on the Mini:** `just pull` is `fetch` + `checkout`, so the clone has to exist
 first, and the secrets file is never in git:
@@ -387,8 +429,9 @@ just pull     # git fetch --tags, checkout the highest version tag (sort -versio
 just build    # build_release (mvn verify → release/) + prepare_release (→ deployment/bin)
 just start    # foreground; deployment/bin/start-publicbackend.sh
 ```
-Verify with `curl localhost:8081/ping` → `ok`, not through the frontend — the deployed frontend
-still points at Render.
+Verify with `curl localhost:8081/ping` → `ok`. That checks the app only; to confirm the whole chain
+(Cloudflare → Caddy → Boot) use `curl https://api2.tarnvik.com/ping` from off the machine, and the CORS
+preflight curl under Environment Variables to confirm the deployed origin is admitted.
 `just doit` chains all three. It re-invokes `just` per step on purpose: `pull` rewrites the justfiles
 and `just` parses them once at startup, so a single-process chain would build the newly checked-out
 source using the *previous* version's jar name.
@@ -397,13 +440,17 @@ source using the *previous* version's jar name.
 (execution `generate-justfile`, bound to `process-resources`), substituting `@project.version@`.
 Edit the template, never `build.just`. It is **committed** deliberately — the Mini checks out a tag
 and builds immediately, so the jar name for that version must already be in the tag. The antrun copy
-is `failonerror="false"` because the Docker build context has no template; `change-version.sh`
-checks the output exists instead.
+is `failonerror="false"` — originally because the Docker build context copied only `pom.xml` and `src/`, so
+the template was absent there. That context is gone with the Dockerfile, and the template is now always
+present, so the flag no longer protects anything and lets a genuinely failed copy pass silently. It is left
+as-is only because `change-version.sh` checks the output exists straight after; tightening it to
+`failonerror="true"` would be a small improvement.
 
 **Secrets** live in `deployment/publicbackend.env` on the Mini only (gitignored, `chmod 600`), copied
-from the committed `deployment/publicbackend.env.example`. `start-publicbackend.sh` sources it, so
-the same variable names Render uses resolve the `${DB_URL}`-style placeholders in
-`application.properties` unchanged. Heap is `JAVA_OPTS` from that file (default `-Xmx2g`).
+from the committed `deployment/publicbackend.env.example`. `start-publicbackend.sh` sources it, so plain
+environment variables resolve the `${DB_URL}`-style placeholders in `application.properties`. The variable
+*names* are inherited from the Render era and were kept on purpose, so `application.properties` needed no
+change when the host did. Heap is `JAVA_OPTS` from that file (default `-Xmx2g`).
 
 **Run directory** is `deployment/bin`, not `target/` — `mvn clean` must not be able to delete the jar
 out from under a running instance. `deployment/bin`, `deployment/logs`, `deployment/*.env` and
@@ -510,21 +557,42 @@ which Boot auto-configures into a `BuildProperties` bean — inject it to read t
 Preferred over a filtered `version.properties`: no resource-filtering configuration, and it cannot
 drift out of step with the pom.
 
-The GTFS in-memory dataset used to be gated on the `local` profile, which is why live traffic never
-worked on Render. That gate is gone on this branch — see I5 in the frontend `CLAUDE.md` for why it
-existed and why merging this branch to `main` while Render still runs would bring the OOM kills back.
+The GTFS in-memory dataset used to be gated on the `local` profile — a mitigation for Render's 512MB cap,
+and the reason live traffic never worked in production there. The gate is gone; the dataset now loads under
+every profile, including `test`. See I5 in the frontend `CLAUDE.md`. One lesson from it is worth keeping:
+the gate sat inside `rebuildDataset()`, so it suppressed the in-memory load but never the nightly download
+or parse, which went on costing Samtrafiken quota to the end. Gate the work, not where the result is stored.
 
 ## Database development
 
-### Row Level Security (PostgreSQL)
+### Row Level Security — retired rule. Do not add new RLS statements.
 
-All tables created in PostgreSQL must have row level security enabled. Include the following SQL in every Liquibase changeset that creates a table, using `dbms="postgresql"`:
+There used to be a rule that every changeset creating a table must also carry
+`<sql dbms="postgresql">ALTER TABLE &lt;name&gt; ENABLE ROW LEVEL SECURITY;</sql>`. **That rule is retired.**
+MySQL is the only database as of August 2026, MySQL has no row level security, and the project is not
+Postgres-portable in any other respect now that the driver is gone — so putting the statement into a new
+changeset would produce nothing but a misleading line.
 
-```xml
-<sql dbms="postgresql">ALTER TABLE <table_name> ENABLE ROW LEVEL SECURITY;</sql>
-```
+Eighteen such statements survive across seventeen files. **Leave them.** They are inert, but not free to
+delete: in sixteen of those files the statement sits inside a changeset that *does* run on MySQL, and
+`ChangeSet.generateCheckSum()` hashes the whole change list regardless of `dbms` filtering — filtering
+happens at execution time, not at checksum time. Removing one changes the stored `MD5SUM` and startup then
+fails with `ValidationFailedException`. Clearing that would mean either `<validCheckSum>ANY</validCheckSum>`
+on each changeset or a `clearCheckSums` run against every live database, both of which trade real
+schema-drift protection for the removal of dead lines.
 
-This must be a separate `<sql>` tag within the same changeset, not a separate changeset.
+Two possible exceptions if a tidy-up is ever wanted: `002-fix-session-attributes-bytes.xml` and
+`005-enable-row-level-security.xml` carry `dbms="postgresql"` on the `<changeSet>` element itself, so they
+are filtered wholesale and should have no `DATABASECHANGELOG` row to mismatch. Verify before touching them:
+`SELECT ID FROM DATABASECHANGELOG WHERE ID IN ('002','005-1','005-2')`.
+
+**Do not read an existing `ENABLE ROW LEVEL SECURITY` line as evidence that a table is protected.** It is
+not, and has not been since the Supabase move.
+
+**Tests cannot catch a checksum mistake here.** `application-test.properties` uses `jdbc:h2:mem:testdb`,
+rebuilt empty on every run, so Liquibase always writes fresh rows and has nothing to compare against. A
+green `mvn verify` proves nothing about a changeset edit — the failure surfaces at `just start` against a
+real database.
 
 ## GTFS Static and Realtime Data
 
@@ -747,10 +815,16 @@ head -1 stops.txt && grep "9022001006101001\|9022001006171002" stops.txt
 
 ### Database Caching Strategy
 
-Static GTFS data for the monitored lines is cached in PostgreSQL via the pipeline below, then loaded into
+Static GTFS data for the monitored lines is cached in the database via the pipeline below, then loaded into
 the in-memory `GtfsDataset` on startup. `/tmp` is the working area for download and unzip; the DB is the
-durable store. All GTFS tables use natural GTFS keys — no synthetic IDs, no timestamp columns. RLS enabled
-on all tables per project rule.
+durable store. All GTFS tables use natural GTFS keys — no synthetic IDs, no timestamp columns. RLS declared
+on all tables per project rule, though it does not execute under MySQL.
+
+The whole pipeline measured **54 seconds** on the Mac Mini (2026-08-06: 5s download of a 64.6 MB zip, 1s
+unzip, 47s parse, peak heap 293 MB of 2048 MB). `stop_times` is 43.7s of that and the cost is the database,
+not the file: each 10k-row batch takes ~2.3s regardless of how much of the 140 MB file it scanned, and the
+final 68% — which matches no monitored trip — is read in 0.76s. Optimise the JDBC side if this ever needs
+to be faster. For context, the same parse took roughly 47 *minutes* on Render.
 
 **Pending:** `feed_version` column on `gtfs_download_log` — populate from `feed_info.txt` during parse,
 show in the GTFS status admin view.

@@ -63,8 +63,9 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# The antrun copy is failonerror="false" (the Docker build context has no template), so a missing
-# template would regenerate nothing rather than fail. Catch that here instead of at deploy time.
+# The antrun copy is failonerror="false" (a leftover from the Render-era Docker build, whose context
+# had no template), so a missing template regenerates nothing rather than failing. Catch that here
+# instead of at deploy time.
 if [ ! -f build.just ]; then
     echo "Error: build.just was not generated — is build.just.template present?"
     exit 1

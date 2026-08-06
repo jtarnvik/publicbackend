@@ -98,13 +98,13 @@
             <artifactId>spring-boot-liquibase</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-
-        <!-- For local MySQL development -->
+        <!--
+          MySQL is the database everywhere: commuter_prod on the Mac Mini, commuter locally.
+          The PostgreSQL driver was dropped in August 2026 with Supabase. The dbms="postgresql"
+          changesets remain in the changelog — removing them would change their checksums and
+          break startup against an existing database — but they are filtered by Liquibase before
+          any driver is needed, so nothing here has to change for them.
+        -->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
@@ -207,8 +207,10 @@
             </plugin>
             <!--
               Generates build.just from build.just.template, substituting the project version.
-              failonerror="false" because the Docker build context only copies pom.xml and src/,
-              so the template is absent there; change-version.sh checks for the output explicitly.
+              failonerror="false" dates from the Render-era Docker build, whose context copied only
+              pom.xml and src/, so the template was absent there. That build is gone and the template is
+              now always present, so this no longer guards anything — change-version.sh checks for the
+              output explicitly, which is what actually catches a failed copy.
             -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
