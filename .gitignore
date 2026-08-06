@@ -52,4 +52,7 @@ pom.xml.versionsBackup
 # port-forwarding rule and the Cloudflare account id. The WAN IP is the one that matters: the
 # api2 DNS record is proxied specifically so the origin address stays hidden, and publishing it
 # would undo that. Kept on local disk only.
-commuter-infra-manual.md
+# The glob is deliberate: this was once an exact filename, and a working copy saved alongside it as
+# commuter-infra-manual-after-phase-8.md was therefore untracked but NOT ignored — one `git add .`
+# from being public. Any -old / -v2 / -draft variant must stay covered.
+commuter-infra-manual*.md
