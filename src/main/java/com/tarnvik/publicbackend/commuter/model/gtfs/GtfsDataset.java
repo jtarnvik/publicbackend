@@ -181,6 +181,25 @@ public class GtfsDataset {
   }
 
   /**
+   * A parent station by name, for the one caller that has a name but no usable id — resolving an SL
+   * departure row to a trip, where the derived parent station id is an inferred encoding rather than a
+   * documented one and needs somewhere to fall back to.
+   * <p>
+   * A linear scan, which is affordable because this map holds only the monitored lines' stops and the scan
+   * runs only on that fallback path. Names are not unique across the region in general; within the handful
+   * of lines tracked here the first match is the only match.
+   */
+  public Optional<GtfsStopInfo> findParentStationByName(String stopName) {
+    if (stopName == null || stopName.isBlank()) {
+      return Optional.empty();
+    }
+    return stopsById.values().stream()
+      .filter(stop -> !stop.hasParentStation())
+      .filter(stop -> stopName.trim().equalsIgnoreCase(stop.getStopName()))
+      .findFirst();
+  }
+
+  /**
    * The canonical stop chain for a route group — the one every vehicle on that group is placed against.
    * Empty only when the group's selector could not find its id trip, which is a configuration problem.
    */

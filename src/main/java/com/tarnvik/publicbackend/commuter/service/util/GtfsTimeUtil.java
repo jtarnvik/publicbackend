@@ -4,6 +4,7 @@ import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeInfo;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 
@@ -58,6 +59,17 @@ public class GtfsTimeUtil {
     } catch (NumberFormatException e) {
       throw new IllegalArgumentException("Not a GTFS HH:MM:SS time: " + gtfsTime, e);
     }
+  }
+
+  /**
+   * A Stockholm wall clock time as an instant.
+   * <p>
+   * SL's departures API reports {@code scheduled} and {@code expected} without any offset —
+   * {@code 2026-08-07T10:21:01} — so the value cannot be read as an instant on its own. It is local time in
+   * the only timezone SL operates in, which is the same one every other time in this class is measured in.
+   */
+  public static Instant toInstant(LocalDateTime localDateTime) {
+    return localDateTime.atZone(ZONE).toInstant();
   }
 
   /** The instant a scheduled time falls on, given the service day the trip belongs to. */

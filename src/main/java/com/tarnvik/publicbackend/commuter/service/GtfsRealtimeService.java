@@ -5,18 +5,23 @@ import com.tarnvik.publicbackend.commuter.model.domain.entity.GtfsMonitoredRoute
 import com.tarnvik.publicbackend.commuter.model.domain.entity.TransportMode;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsDataset;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRouteInfo;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsVehiclePosition;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.GroupKey;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveStop;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveTrip;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveVehicle;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.ResolveOutcome;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.ResolvedTrip;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.RouteData;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.RouteFocus;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.TripQuery;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.samtrafiken.SamtrafikenProvider;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil.VehicleLocation;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsPredictionUtil;
+import com.tarnvik.publicbackend.commuter.service.util.GtfsTripMatchUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -123,6 +128,93 @@ public class GtfsRealtimeService {
       log.warn("Route data for {}/{} failed: {}", transportMode, routeGroup, e.getMessage(), e);
       return RouteData.builder().status("Failure: " + e.getMessage()).vehicles(List.of()).build();
     }
+  }
+
+  /**
+   * Finds the live vehicle behind one departure row from SL's departures API.
+   * <p>
+   * The search runs over the vehicles currently reporting on the requested group — a few dozen at most —
+   * rather than over the timetable, which holds thousands of trips per group across every service day. That
+   * is both the cheaper search and the more honest one: a trip that matches perfectly but has no vehicle
+   * behind it cannot be pointed at on the schematic, so it is not an answer.
+   * <p>
+   * Resolving deliberately goes through {@link GtfsRealtimeCache#getContinously()} and so renews the poll
+   * window. The caller is on their way into the live traffic view, so warming the loop here means their
+   * first route data request is a cache hit rather than a blocking upstream fetch.
+   */
+  public ResolvedTrip resolveTrip(TripQuery query) {
+    try {
+      final GtfsDataset dataset = gtfsAccessService.getDataset();
+      if (dataset.isEmpty()) {
+        return ResolvedTrip.of(ResolveOutcome.NO_LIVE_DATA);
+      }
+      Optional<String> parentStationId = resolveParentStationId(dataset, query);
+      if (parentStationId.isEmpty()) {
+        log.debug("No parent station for stop area {} ({}) — cannot resolve", query.getStopAreaId(),
+          query.getStopAreaName());
+        return ResolvedTrip.of(ResolveOutcome.NO_MATCH);
+      }
+      Optional<Map<GtfsRouteInfo, List<GtfsVehiclePosition>>> cached = gtfsCache.getContinously();
+      if (cached.isEmpty()) {
+        return ResolvedTrip.of(ResolveOutcome.NO_LIVE_DATA);
+      }
+      return findMatch(dataset, cached.get(), query, parentStationId.get());
+    } catch (Exception e) {
+      log.warn("Resolving a trip for {}/{} failed: {}", query.getTransportMode(), query.getRouteGroup(),
+        e.getMessage(), e);
+      return ResolvedTrip.of(ResolveOutcome.NO_LIVE_DATA);
+    }
+  }
+
+  /**
+   * The query's stop as a GTFS parent station id. The id is derived arithmetically from SL's
+   * {@code stop_area.id} and only falls back to the stop name when that derivation lands on nothing — see
+   * {@link GtfsTripMatchUtil} for why the derivation works and why it is not simply trusted.
+   */
+  private Optional<String> resolveParentStationId(GtfsDataset dataset, TripQuery query) {
+    String derived = GtfsTripMatchUtil.toParentStationId(query.getStopAreaId());
+    if (dataset.getStopByStopId(derived).isPresent()) {
+      return Optional.of(derived);
+    }
+    log.debug("Derived parent station {} is not in the dataset — falling back to the name {}", derived,
+      query.getStopAreaName());
+    return dataset.findParentStationByName(query.getStopAreaName()).map(GtfsStopInfo::getStopId);
+  }
+
+  private ResolvedTrip findMatch(GtfsDataset dataset, Map<GtfsRouteInfo, List<GtfsVehiclePosition>> byRoute,
+                                 TripQuery query, String parentStationId) {
+    List<GtfsVehiclePosition> matches = new ArrayList<>();
+    for (Map.Entry<GtfsRouteInfo, List<GtfsVehiclePosition>> entry : byRoute.entrySet()) {
+      if (!matchesGroup(entry.getKey(), query.getTransportMode(), query.getRouteGroup())) {
+        continue;
+      }
+      for (GtfsVehiclePosition vp : entry.getValue()) {
+        Optional<GtfsTripInfo> trip = dataset.findTripByTripId(vp.getTripId());
+        if (trip.isPresent() && GtfsTripMatchUtil.matches(trip.get(), query, parentStationId, observedAt(vp))) {
+          matches.add(vp);
+        }
+      }
+    }
+    if (matches.isEmpty()) {
+      log.debug("No live vehicle matches {} {} from {} at {} — the vehicle is most likely not reporting yet",
+        query.getTransportMode(), query.getLine(), parentStationId, query.getScheduled());
+      return ResolvedTrip.of(ResolveOutcome.NO_MATCH);
+    }
+    if (matches.size() > 1) {
+      log.warn("{} live vehicles match {} {} from {} at {} — the content key should be unique, so this is "
+          + "worth looking at", matches.size(), query.getTransportMode(), query.getLine(), parentStationId,
+        query.getScheduled());
+      return ResolvedTrip.of(ResolveOutcome.AMBIGUOUS);
+    }
+    GtfsVehiclePosition match = matches.getFirst();
+    log.debug("Resolved {} {} from {} at {} to trip {}", query.getTransportMode(), query.getLine(),
+      parentStationId, query.getScheduled(), match.getTripId());
+    return ResolvedTrip.matched(match.getTripId(), match.getVehicleId());
+  }
+
+  /** When the vehicle reported itself, which is what places its trip on a service day. */
+  private Instant observedAt(GtfsVehiclePosition vp) {
+    return vp.getTimestamp() > 0 ? Instant.ofEpochSecond(vp.getTimestamp()) : Instant.now();
   }
 
   /**
