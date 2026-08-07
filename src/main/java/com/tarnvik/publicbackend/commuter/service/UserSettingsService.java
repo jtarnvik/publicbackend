@@ -50,6 +50,28 @@ public class UserSettingsService {
   }
 
   /**
+   * Saves the favourites alone, for the live traffic view where a stop is tapped on the schematic.
+   * <p>
+   * Its own method and its own endpoint for the same reason {@link #saveLiveTrafficView} has one: the live
+   * traffic view does not own the stop point or the AI flag, so it must not have to send them back. Going
+   * through {@code saveSettings} would make every tap a read-modify-write of fields the view does not
+   * manage, and a stop point changed in the settings dialog meanwhile would be overwritten by whatever the
+   * view happened to be holding.
+   * <p>
+   * Unlike there, null is not accepted: the only caller sends the whole list every time, so an absent list
+   * would be a bug rather than an old client. {@code FavouriteStopsRequest} rejects it before this is
+   * reached.
+   */
+  @Transactional
+  public void saveFavouriteStops(AllowedUser user, List<FavouriteStop> favouriteStops) {
+    UserSettings settings = userSettingsRepository.findByAllowedUserEmail(user.getEmail())
+      .orElseGet(UserSettings::new);
+    settings.setAllowedUser(user);
+    settings.setFavouriteStops(sanitizeFavourites(favouriteStops));
+    userSettingsRepository.save(settings);
+  }
+
+  /**
    * Drops blanks, removes duplicate stop ids and enforces the cap — silently, never by failing the request.
    * A stop legitimately appears in more than one route group (Alvik is on the green line and is the
    * terminus of bus 112), so ticking it in either place must not consume two of the ten.

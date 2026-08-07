@@ -3,6 +3,7 @@ package com.tarnvik.publicbackend.commuter.port.incoming.rest;
 import com.tarnvik.publicbackend.commuter.model.domain.FavouriteStop;
 import com.tarnvik.publicbackend.commuter.model.domain.entity.AllowedUser;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.FavouriteStopRequest;
+import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.FavouriteStopsRequest;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.LiveTrafficViewRequest;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.RecentStopRequest;
 import com.tarnvik.publicbackend.commuter.port.incoming.rest.dto.SettingsRequest;
@@ -40,6 +41,17 @@ public class SettingsController {
     return requested.stream()
       .map(stop -> new FavouriteStop(stop.stopId(), stop.stopName()))
       .toList();
+  }
+
+  /**
+   * The favourites on their own, saved when a stop is tapped on the live traffic schematic. Separate from
+   * {@code PUT /settings} because the live traffic view does not own the stop point or the AI flag, and
+   * echoing them back on every tap would overwrite a change made in the settings dialog elsewhere.
+   */
+  @PutMapping("/settings/favourite-stops")
+  public ResponseEntity<Void> saveFavouriteStops(AllowedUser user, @Valid @RequestBody FavouriteStopsRequest request) {
+    userSettingsService.saveFavouriteStops(user, toFavouriteStops(request.favouriteStops()));
+    return ResponseEntity.ok().build();
   }
 
   @PutMapping("/settings/live-traffic-view")

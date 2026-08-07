@@ -210,6 +210,57 @@ class SettingsFlowTest {
       .andExpect(jsonPath("$.settings.favouriteStops[0].stopName").value("Åkeshov"));
   }
 
+  // --- PUT /api/protected/settings/favourite-stops ---
+
+  private static String favouriteStopsBody(String favouriteStopsJson) {
+    return "{\"favouriteStops\":%s}".formatted(favouriteStopsJson);
+  }
+
+  @Test
+  void saveFavouriteStops_withoutAuth_returns401() throws Exception {
+    mockMvc.perform(put("/api/protected/settings/favourite-stops")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(favouriteStopsBody("[]")))
+      .andExpect(status().isUnauthorized());
+  }
+
+  /**
+   * The whole reason this endpoint exists: the live traffic schematic saves favourites without owning the
+   * stop point, so a tap there must not touch what the settings dialog stored.
+   */
+  @Test
+  void saveFavouriteStops_persistsThemWithoutTouchingTheStopPoint() throws Exception {
+    putSettings(settingsBody("[" + favourite("9021001001241000", "Åkeshov") + "]"));
+    postRecentStop("1001", "Första hållplatsen");
+
+    mockMvc.perform(put("/api/protected/settings/favourite-stops")
+        .with(oauth2Login().attributes(attrs -> attrs.put("email", TEST_EMAIL)))
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(favouriteStopsBody("[" + favourite("9021001001241000", "Åkeshov")
+          + "," + favourite("9021001006081000", "Kungsängen") + "]")))
+      .andExpect(status().isOk());
+
+    UserSettings settings = userSettingsRepository.findByAllowedUserEmail(TEST_EMAIL).orElseThrow();
+    assertThat(settings.getFavouriteStops()).hasSize(2);
+    assertThat(settings.getStopPointId()).isEqualTo("9091001000003715");
+    assertThat(settings.getStopPointName()).isEqualTo("Skogslöparvägen");
+    assertThat(settings.isUseAiInterpretation()).isTrue();
+    assertThat(settings.getRecentStops()).hasSize(1);
+  }
+
+  /**
+   * Unlike PUT /settings, an absent list here is a bug rather than an old client — this endpoint has no
+   * cached-bundle callers to be lenient towards, so it says so instead of silently doing nothing.
+   */
+  @Test
+  void saveFavouriteStops_withNullList_returns400() throws Exception {
+    mockMvc.perform(put("/api/protected/settings/favourite-stops")
+        .with(oauth2Login().attributes(attrs -> attrs.put("email", TEST_EMAIL)))
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(favouriteStopsBody("null")))
+      .andExpect(status().isBadRequest());
+  }
+
   // --- PUT /api/protected/settings/live-traffic-view ---
 
   private void putLiveTrafficView(String body) throws Exception {
