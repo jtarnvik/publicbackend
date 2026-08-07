@@ -303,9 +303,6 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 | GET | `/api/admin/users` | Admin | List allowed users |
 | DELETE | `/api/admin/users/{id}` | Admin | Delete an allowed user |
 | GET | `/api/admin/statistics` | Admin | Usage statistics (`routesShared`, `aiInterpretationQueries`, `userCount`) |
-| GET | `/api/admin/gtfs/status` | Admin | Most recent `gtfs_download_log` entry (phase timestamps, error message) |
-| POST | `/api/admin/gtfs/run-pipeline` | Admin | Run the GTFS pipeline manually |
-| POST | `/api/admin/gtfs/reset` | Admin | Reset the most recent entry to `DOWNLOAD_DONE` and clear the GTFS tables. 409 while a download is in flight |
 | GET | `/api/public/routes/{id}` | Public | Fetch a shared route by ID; returns `{ routeData }` (serialized Journey JSON) |
 
 ---
@@ -829,8 +826,12 @@ not the file: each 10k-row batch takes ~2.3s regardless of how much of the 140 M
 final 68% — which matches no monitored trip — is read in 0.76s. Optimise the JDBC side if this ever needs
 to be faster. For context, the same parse took roughly 47 *minutes* on Render.
 
-**Pending:** `feed_version` column on `gtfs_download_log` — populate from `feed_info.txt` during parse,
-show in the GTFS status admin view.
+**Pending:** `feed_version` column on `gtfs_download_log` — populate from `feed_info.txt` during parse.
+
+**There is no admin UI over the pipeline.** The `/api/admin/gtfs/*` endpoints and the frontend's GTFS status
+view were development scaffolding and were removed in August 2026. `gtfs_download_log` and the application
+log are the whole story now; forcing a re-parse of a date already attempted means clearing the GTFS tables
+and that row by hand.
 
 ## GTFS Pipeline
 
@@ -854,7 +855,7 @@ Five services, deliberately split by phase so each has one reason to change.
 
 | Service | Owns |
 |---|---|
-| `GtfsPipelineService` | Orchestration only: `recover → download → unzip → parse → rebuildDataset`. Plus `resetToDownloadDone()` (clears the 5 GTFS tables + unzip dir in one transaction). No logic of its own. |
+| `GtfsPipelineService` | Orchestration only: `recover → download → unzip → parse → rebuildDataset`, then `verifyRealtimeFeed()`. No logic of its own. |
 | `GtfsDownloadService` | `/tmp/sl-gtfs-cache` and the zip. Download (once per date), unzip, crash recovery from a stuck `PARSE_START`. |
 | `GtfsParseService` | CSV → DB. Filters the feed to monitored routes and writes the 5 GTFS tables. Owns the batching and `entityManager` lifecycle (class Javadoc). |
 | `GtfsAccessService` | DB → memory. Holds the `AtomicReference<GtfsDataset>` and serves the read endpoints (`route-groups`, `status`). Never touches files. |

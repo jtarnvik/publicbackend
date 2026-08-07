@@ -118,14 +118,6 @@ public class GtfsDownloadService {
     }
   }
 
-  public void clearUnzipDir() {
-    try {
-      deleteDir(UNZIP_DIR);
-    } catch (IOException e) {
-      log.warn("Could not delete unzip dir: {}", e.getMessage());
-    }
-  }
-
   private GtfsDownloadException handlePipelineFailure(GtfsDownloadLog entry, String phase, Exception e) {
     log.error("GTFS {} failed: {}", phase, e.getMessage(), e);
     gtfsDownloadDao.updateFailed(entry, e.getMessage());
