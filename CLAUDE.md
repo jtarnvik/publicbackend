@@ -281,6 +281,7 @@ Config: `spring.session.jdbc.initialize-schema=never` — Liquibase creates the 
 |---|---|---|---|
 | GET | `/ping` | Public | Health check, returns "ok" |
 | POST | `/api/public/access-request` | Public | Submit an access request |
+| GET | `/api/public/version` | Public | Running backend version, for the frontend's about dialog. `"unknown"` when the build has no `build-info` |
 | GET | `/api/auth/me` | Optional | Returns user info (with settings) or 401 |
 | POST | `/api/auth/logout` | Optional | Clears session and cookie |
 | GET | `/api/protected/gtfs/route-groups` | User | List selectable monitored route groups (transportMode, routeGroup, displayName, `lines`) |
