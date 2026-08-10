@@ -746,7 +746,39 @@ The Stockholm regional feed contains approximately **1750 vehicle entities** at 
 | `current_stop_sequence` | ❌ Never | Always 0 — cannot use for stop placement |
 | `stop_id` | ❌ Never | Always empty |
 | `current_status` | ✅ Always | `IN_TRANSIT_TO` or `STOPPED_AT` |
-| `timestamp` | ✅ Always | Unix timestamp of position report |
+| `timestamp` | ✅ Always | Present, but see below — it is not always as fresh as the position it is attached to |
+
+#### Position freshness — the train feed is not the bus feed
+
+**A populated `timestamp` does not mean the position under it is current.** Measured over two
+five-minute samples of the live feed (August 2026, ~53 monitored vehicles per poll):
+
+| mode | MOVED | STAMP-ONLY | FROZEN | median position age |
+|---|---|---|---|---|
+| BUS | 77% | 6% | 16% | 2 s |
+| METRO | 58% | 2% | 38% | 11 s |
+| TRAIN | 27% | **19%** | 53% | **29 s** |
+
+*MOVED* = the position changed between consecutive reports; *STAMP-ONLY* = the timestamp advanced
+while the position did not; *FROZEN* = neither moved.
+
+Buses behave like live GPS: reports every couple of seconds, `speed` populated, position advancing
+50–190 m each time. Trains do not. A train at line speed will repeat one position for minutes — one
+observed run held the same coordinates for 3m38s and then jumped 6.1 km in a single report — and
+while it repeats, the timestamp sometimes refreshes anyway. `speed` is `0.0` or `~-0.3` (noise) for
+every train, which is the tell: this is not GPS off the vehicle.
+
+**Why it matters:** `GtfsPredictionUtil` derives delay as `timestamp - scheduledTimeAt(position)`,
+so a stamp fresher than the position charges the whole gap to the traffic. Excluding samples within
+150 m of one of the trip's own stops — a vehicle dwelling at a platform legitimately repeats its
+position — trains showed a p90 of 27 s and a maximum of 111 s of delay that was not happening, with
+6% of samples inflated by over a minute; buses and the metro showed none. `GtfsPositionAnchors` is
+the correction. The measured figures are a floor, not a ceiling: the metric anchors on the earliest
+timestamp *observed* in the window, so a position already stale when the window opened is
+undercounted.
+
+Re-measure with `scripts/rt_freshness.py` rather than trusting these numbers — they describe an
+upstream feed that is free to change. See "Diagnostic scripts" below.
 
 #### Matching RT to Static Data
 
@@ -813,6 +845,26 @@ head -1 stops.txt && grep "9022001006101001\|9022001006171002" stops.txt
 ```
 
 ---
+
+### Diagnostic scripts
+
+`scripts/` holds throwaway-but-kept tools for questions the application log cannot answer. They are
+not part of the build and nothing depends on them.
+
+| Script | What it answers |
+|---|---|
+| `rt_freshness.py` | Whether a vehicle's reported position is as fresh as the timestamp attached to it, per mode. Polls VehiclePositions for a few minutes and classifies every consecutive pair of reports as MOVED / STAMP-ONLY / FROZEN, then estimates how much of the delay we would report is really just a stale position. This is the evidence behind `GtfsPositionAnchors`. |
+
+Conventions for anything added here: **no dependencies** — `rt_freshness.py` decodes the GTFS-RT
+protobuf by field number rather than pulling in `gtfs-realtime-bindings`, so it runs against a bare
+Python 3 with nothing installed. Secrets come from the environment first
+(`SAMTRAFIKEN_REALTIME_API_KEY`) and only then from the gitignored
+`application-local.properties`; they are never printed and are scrubbed from error messages.
+**This repository is public** — no absolute paths from a developer's machine, no host details.
+
+Attributing a vehicle to a line needs the unzipped static extract the pipeline leaves in
+`/tmp/sl-gtfs-cache/unzipped`; `--gtfs` points at another one. The phantom-delay section greps the
+140 MB `stop_times.txt` once and takes a minute or so.
 
 ### Database Caching Strategy
 

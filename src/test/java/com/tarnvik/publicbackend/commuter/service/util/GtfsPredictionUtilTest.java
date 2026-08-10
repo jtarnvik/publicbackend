@@ -42,6 +42,9 @@ class GtfsPredictionUtilTest {
   private static final Instant B_ON_TIME = Instant.parse("2026-08-06T06:10:00Z");
   private static final Instant C_ON_TIME = Instant.parse("2026-08-06T06:20:00Z");
   private static final Instant A_ON_TIME = Instant.parse("2026-08-06T06:00:00Z");
+  /** Midway between A and B, and between B and C — on time for either halfway point. */
+  private static final Instant HALFWAY = Instant.parse("2026-08-06T06:05:00Z");
+  private static final Instant AN_HOUR_LATE = Instant.parse("2026-08-06T07:05:00Z");
 
   private static GtfsStopInfo platform(String parentId, String name, double lat) {
     GtfsStopInfo parent = GtfsStopInfo.builder()
@@ -97,7 +100,7 @@ class GtfsPredictionUtilTest {
     LiveTrip chain = chain();
     LiveVehicle atB = vehicle(chain, downwardTrip(), 59.001, LON, B_ON_TIME);
 
-    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, atB, Instant.now());
+    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, atB, B_ON_TIME);
 
     assertThat(predictions).extracting(StopPrediction::stopId).containsExactly(STATION_B, STATION_C);
     assertThat(predictions).extracting(StopPrediction::departure).containsExactly(B_ON_TIME, C_ON_TIME);
@@ -109,7 +112,7 @@ class GtfsPredictionUtilTest {
     // At B, but reporting five minutes after it was due there.
     LiveVehicle atB = vehicle(chain, downwardTrip(), 59.001, LON, B_ON_TIME.plusSeconds(300));
 
-    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, atB, Instant.now());
+    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, atB, B_ON_TIME.plusSeconds(300));
 
     assertThat(predictions).extracting(StopPrediction::departure)
       .containsExactly(B_ON_TIME.plusSeconds(300), C_ON_TIME.plusSeconds(300));
@@ -119,9 +122,9 @@ class GtfsPredictionUtilTest {
   void anUpwardVehiclePredictsBackAlongTheChain() throws Exception {
     LiveTrip chain = chain();
     // Halfway between B and C, running the other way, on time for that point.
-    LiveVehicle betweenCandB = vehicle(chain, upwardTrip(), 59.0015, LON, Instant.parse("2026-08-06T06:05:00Z"));
+    LiveVehicle betweenCandB = vehicle(chain, upwardTrip(), 59.0015, LON, HALFWAY);
 
-    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, betweenCandB, Instant.now());
+    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, betweenCandB, HALFWAY);
 
     assertThat(predictions).extracting(StopPrediction::stopId).containsExactly(STATION_B, STATION_A);
     assertThat(predictions).extracting(StopPrediction::departure).containsExactly(B_ON_TIME, C_ON_TIME);
@@ -133,9 +136,9 @@ class GtfsPredictionUtilTest {
     GtfsTripInfo shortTurn = trip(0, List.of(
       stopTime(1, A, "08:00:00", 0.0),
       stopTime(2, B, "08:10:00", 111.0)));
-    LiveVehicle betweenAandB = vehicle(chain, shortTurn, 59.0005, LON, Instant.parse("2026-08-06T06:05:00Z"));
+    LiveVehicle betweenAandB = vehicle(chain, shortTurn, 59.0005, LON, HALFWAY);
 
-    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, betweenAandB, Instant.now());
+    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, betweenAandB, HALFWAY);
 
     assertThat(predictions).extracting(StopPrediction::stopId).containsExactly(STATION_B);
   }
@@ -145,9 +148,9 @@ class GtfsPredictionUtilTest {
     LiveTrip chain = chain();
     // Nearly three kilometres east of the line, and reporting an hour late. Neither number is trustworthy,
     // so the delay must be discarded rather than applied.
-    LiveVehicle astray = vehicle(chain, downwardTrip(), 59.0005, 18.05, Instant.parse("2026-08-06T07:05:00Z"));
+    LiveVehicle astray = vehicle(chain, downwardTrip(), 59.0005, 18.05, AN_HOUR_LATE);
 
-    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, astray, Instant.now());
+    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, astray, AN_HOUR_LATE);
 
     assertThat(predictions).extracting(StopPrediction::departure).containsExactly(B_ON_TIME, C_ON_TIME);
   }
@@ -159,7 +162,7 @@ class GtfsPredictionUtilTest {
     // about a bad trip match than about the traffic.
     LiveVehicle atB = vehicle(chain, downwardTrip(), 59.001, LON, B_ON_TIME.plusSeconds(80 * 60));
 
-    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, atB, Instant.now());
+    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, atB, B_ON_TIME.plusSeconds(80 * 60));
 
     assertThat(predictions).extracting(StopPrediction::departure)
       .containsExactly(B_ON_TIME.plusSeconds(30 * 60), C_ON_TIME.plusSeconds(30 * 60));
@@ -171,7 +174,7 @@ class GtfsPredictionUtilTest {
     LiveTrip chain = chain();
     LiveVehicle atC = vehicle(chain, downwardTrip(), 59.002, LON, C_ON_TIME);
 
-    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, atC, Instant.now());
+    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, atC, C_ON_TIME);
 
     assertThat(predictions).extracting(StopPrediction::stopId).containsExactly(STATION_C);
   }
@@ -182,7 +185,7 @@ class GtfsPredictionUtilTest {
     GtfsTripInfo oneStop = trip(0, List.of(stopTime(1, A, "08:00:00", 0.0)));
     LiveVehicle atA = vehicle(chain, oneStop, 59.000, LON, A_ON_TIME);
 
-    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, atA, Instant.now());
+    List<StopPrediction> predictions = GtfsPredictionUtil.predict(chain, atA, A_ON_TIME);
 
     assertThat(predictions).isEmpty();
   }

@@ -49,6 +49,7 @@ public class GtfsRealtimeService {
   private final GtfsAccessService gtfsAccessService;
   private final ApplicationEventPublisher eventPublisher;
   private final GtfsRealtimeCache gtfsCache = new GtfsRealtimeCache();
+  private final GtfsPositionAnchors positionAnchors = new GtfsPositionAnchors();
 
   public GtfsRealtimeService(SamtrafikenProvider samtrafikenProvider, GtfsAccessService gtfsAccessService,
                              ApplicationEventPublisher eventPublisher) {
@@ -190,7 +191,7 @@ public class GtfsRealtimeService {
       }
       for (GtfsVehiclePosition vp : entry.getValue()) {
         Optional<GtfsTripInfo> trip = dataset.findTripByTripId(vp.getTripId());
-        if (trip.isPresent() && GtfsTripMatchUtil.matches(trip.get(), query, parentStationId, observedAt(vp))) {
+        if (trip.isPresent() && GtfsTripMatchUtil.matches(trip.get(), query, parentStationId, reportedAt(vp))) {
           matches.add(vp);
         }
       }
@@ -212,8 +213,14 @@ public class GtfsRealtimeService {
     return ResolvedTrip.matched(match.getTripId(), match.getVehicleId());
   }
 
-  /** When the vehicle reported itself, which is what places its trip on a service day. */
-  private Instant observedAt(GtfsVehiclePosition vp) {
+  /**
+   * When the vehicle reported itself, which is what places its trip on a service day.
+   * <p>
+   * Deliberately the raw report rather than the anchored observation {@link GtfsPositionAnchors} serves to
+   * the prediction path: all this decides is which midnight the trip's times count from, so a stale report
+   * is only wrong if it is stale by most of a day.
+   */
+  private Instant reportedAt(GtfsVehiclePosition vp) {
     return vp.getTimestamp() > 0 ? Instant.ofEpochSecond(vp.getTimestamp()) : Instant.now();
   }
 
@@ -355,10 +362,13 @@ public class GtfsRealtimeService {
       .location(location)
       .trip(maybeTrip.get())
       .build();
+    // Anchored rather than reported: a feed that refreshes the timestamp without moving the position would
+    // otherwise have every second of that staleness read as delay. See GtfsPositionAnchors.
+    Instant observedAt = positionAnchors.observedAt(vp, now);
     // Predicted against the full chain for the same reason the geometry is: what the caller asked to see
     // must not change where anything is, only how much of it is sent.
     return Optional.of(vehicle.toBuilder()
-      .stopPredictions(GtfsPredictionUtil.predict(liveTrip, vehicle, now))
+      .stopPredictions(GtfsPredictionUtil.predict(liveTrip, vehicle, observedAt))
       .build());
   }
 
@@ -501,21 +511,27 @@ public class GtfsRealtimeService {
         // route to group it under, so there is no reason to look it up again afterwards.
         long joinStart = System.currentTimeMillis();
         Map<GtfsRouteInfo, List<GtfsVehiclePosition>> vpByRoute = new HashMap<>();
-        int monitoredCount = 0;
+        List<GtfsVehiclePosition> monitored = new ArrayList<>();
         for (GtfsVehiclePosition vp : gtfsVehiclePositions) {
           Optional<GtfsTripInfo> trip = dataset.findTripByTripId(vp.getTripId());
           if (trip.isEmpty()) {
             continue;
           }
           vpByRoute.computeIfAbsent(trip.get().getRouteInfo(), routeInfo -> new ArrayList<>()).add(vp);
-          monitoredCount++;
+          monitored.add(vp);
         }
         long joinMs = System.currentTimeMillis() - joinStart;
 
+        // Every snapshot, and only the monitored vehicles: this is the one place fresh feed data arrives,
+        // and anchoring the rest would keep a thousand entries nothing ever predicts against.
+        positionAnchors.update(monitored);
+
         // Trace: one line per poll cycle. Kept because it is the only place the fetch/join split is
         // measured — raise it to info when the timings need looking at again.
-        log.trace("GTFS-RT direct — {} vehicles in feed, {} on monitored lines, {} routes; fetch={}ms, join={}ms, total={}ms",
-          gtfsVehiclePositions.size(), monitoredCount, vpByRoute.size(), fetchMs, joinMs, fetchMs + joinMs);
+        log.trace("GTFS-RT direct — {} vehicles in feed, {} on monitored lines, {} routes, {} anchored; "
+            + "fetch={}ms, join={}ms, total={}ms",
+          gtfsVehiclePositions.size(), monitored.size(), vpByRoute.size(), positionAnchors.size(),
+          fetchMs, joinMs, fetchMs + joinMs);
         return Optional.of(vpByRoute);
       } catch (Exception e) {
         throw new RuntimeException(e);

@@ -29,8 +29,12 @@ import java.util.Optional;
  * <p>
  * The delay is instead derived from the one thing the feed does give: where the vehicle actually is. The
  * same projection that places a vehicle on the group's chain is run a second time against the vehicle's
- * <em>own</em> trip, the scheduled time at that point is interpolated, and the difference from the position
- * report's timestamp is the delay. Every remaining scheduled time is shifted by it.
+ * <em>own</em> trip, the scheduled time at that point is interpolated, and the difference from the moment
+ * the vehicle was at that position is the delay. Every remaining scheduled time is shifted by it.
+ * <p>
+ * That moment is supplied by the caller and is <b>not</b> the same thing as the report's timestamp — see
+ * {@code GtfsPositionAnchors}, which exists because the train feed refreshes timestamps against positions
+ * it has not updated, and every second of that gap would otherwise be read as delay.
  * <p>
  * Two guards keep a poor geometric match from producing a confident wrong answer: a projection further than
  * {@link #MAX_MATCH_METRES} from the trip falls back to the plain timetable, and the delay is clamped to
@@ -58,18 +62,18 @@ public class GtfsPredictionUtil {
    * Empty for anything that cannot be worked out — the list is decoration on a schematic that has to keep
    * drawing, so a trip with unusable times costs its own predictions and nothing else.
    *
-   * @param chain   the route group's chain, which the vehicle's {@code location} indexes into
-   * @param vehicle the located vehicle, carrying its own trip and its position report
-   * @param now     fallback for a position report with no usable timestamp
+   * @param chain      the route group's chain, which the vehicle's {@code location} indexes into
+   * @param vehicle    the located vehicle, carrying its own trip and its position report
+   * @param observedAt when the vehicle was at the position it is reporting — the anchored moment, not the
+   *                   report's own timestamp
    */
-  public static List<StopPrediction> predict(LiveTrip chain, LiveVehicle vehicle, Instant now) {
+  public static List<StopPrediction> predict(LiveTrip chain, LiveVehicle vehicle, Instant observedAt) {
     List<GtfsStopTimeInfo> stopTimes = vehicle.getTrip().getStopTimes();
     List<GtfsStopInfo> ownStops = ownStops(stopTimes);
     if (ownStops.size() < 2) {
       return List.of();
     }
     try {
-      Instant observedAt = observedAt(vehicle, now);
       LocalDate serviceDate = GtfsTimeUtil.resolveServiceDate(stopTimes, observedAt);
       VehicleLocation onOwnTrip = GtfsGeometryUtil.locateOnRoute(ownStops, vehicle.getPosition());
       Duration delay = estimateDelay(stopTimes, serviceDate, onOwnTrip, observedAt);
@@ -94,12 +98,6 @@ public class GtfsPredictionUtil {
       stops.add(stopTime.getStop());
     }
     return stops;
-  }
-
-  /** When the vehicle reported itself, which is the moment the delay is measured at — not when we serve. */
-  private static Instant observedAt(LiveVehicle vehicle, Instant now) {
-    long timestamp = vehicle.getPosition().getTimestamp();
-    return timestamp > 0 ? Instant.ofEpochSecond(timestamp) : now;
   }
 
   /**
