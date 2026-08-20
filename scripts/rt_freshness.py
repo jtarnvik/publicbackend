@@ -53,6 +53,10 @@ FEED_URL = "https://opendata.samtrafiken.se/gtfs-rt/sl/VehiclePositions.pb"
 MONITORED = {"43": "TRAIN", "44": "TRAIN", "112": "BUS", "117": "BUS",
              "17": "METRO", "18": "METRO", "19": "METRO"}
 
+# GTFS extended route types per mode, mirroring the TransportMode enum. Verified against the feed on
+# 2026-08-20: 100 rail, 700 bus, 401 metro.
+MODE_ROUTE_TYPE = {"TRAIN": 100, "BUS": 700, "METRO": 401}
+
 
 # ----------------------------------------------------------------------------- protobuf decoding
 
@@ -159,6 +163,37 @@ def fetch(key):
 
 # ----------------------------------------------------------------------------- static join
 
+def base_line_name(designation):
+    """
+    A designation without its variant suffix — one optional trailing letter.
+
+    The same rule as `GtfsNameUtil.baseLineName`. Matching on the exact name instead looks harmless
+    and is not: line 43 also runs as 43A, 43B, 43D, 43M, 43T and 43X, and an exact filter drops every
+    one of them while still reporting a healthy-looking count of plain 43s. The figures quoted in
+    CLAUDE.md were measured before this was corrected (2026-08-20) and so cover plain 43/44 only.
+    """
+    return re.sub(r"[A-Za-z]$", "", designation.strip())
+
+
+def is_monitored(short_name, route_type):
+    """
+    Whether this route is one of ours — by name *and* by mode, which is not optional.
+
+    Line numbers are not unique across modes in this feed. 17 and 19 are green line metro routes and
+    also Waxholmsbolaget ferry routes (route_type 1000); 43A, 43B, 43D, 43M, 43T and 43X exist as
+    "Ersätter Pendeltåget" replacement buses (route_type 700) alongside the real line 43 train. A
+    name-only filter swallows all of them, which is how this script briefly disagreed with the
+    database by 219 trips. GtfsParseService.matchesMonitoredRoute checks both; so does this.
+    """
+    mode = MONITORED.get(base_line_name(short_name))
+    if mode is None:
+        return False
+    try:
+        return int(route_type) == MODE_ROUTE_TYPE[mode]
+    except (TypeError, ValueError):
+        return False
+
+
 def load_monitored_trips(gtfs):
     """trip_id -> (line, mode) for the monitored lines, from the unzipped static extract."""
     import csv
@@ -166,7 +201,7 @@ def load_monitored_trips(gtfs):
     try:
         with open(f"{gtfs}/routes.txt", newline="") as f:
             for row in csv.DictReader(f):
-                if row["route_short_name"] in MONITORED:
+                if is_monitored(row["route_short_name"], row["route_type"]):
                     routes[row["route_id"]] = row["route_short_name"]
     except OSError:
         print(f"No static extract at {gtfs} — vehicles cannot be attributed to a line.\n")
@@ -176,7 +211,7 @@ def load_monitored_trips(gtfs):
         for row in csv.DictReader(f):
             line = routes.get(row["route_id"])
             if line:
-                trips[row["trip_id"]] = (line, MONITORED[line])
+                trips[row["trip_id"]] = (line, MONITORED[base_line_name(line)])
     return trips
 
 

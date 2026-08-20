@@ -604,7 +604,11 @@ reference line throughout.
 ### Data Sources
 
 - **Static feed:** GTFS Regional (Stockholm) from Trafiklab — downloaded periodically, roughly weekly updates
-- **Realtime feed:** GTFS Regional Realtime — VehiclePositions (Protobuf format) from Trafiklab
+- **Realtime feed:** GTFS Regional Realtime from Trafiklab, Protobuf. Two files on the same key, at
+  sibling paths under `https://opendata.samtrafiken.se/gtfs-rt/sl/`:
+  - `VehiclePositions.pb` — where vehicles are. Polled by `GtfsRealtimeService`.
+  - `TripUpdates.pb` — how late they were at the platforms they have passed. **Not fetched by the
+    application** as of 2026-08-20, but confirmed available; see below.
 - **API library:** `com.google.transit:gtfs-realtime-bindings:0.0.8` for Protobuf parsing
 
 ### Key Identifiers
@@ -660,9 +664,22 @@ stops.txt        →  stop_name, stop_lat, stop_lon
 - `100` = Railway/Rail service (pendeltåg)
 - `700` = Bus
 - `900` = Tram
-- Metro (lines 17/18/19): type code **not yet verified** — do not assume `401`; check `routes.txt` before filtering.
+- `401` = Metro (lines 17/18/19) — **verified against the feed 2026-08-20**, and it is what the
+  `TransportMode` enum has always encoded. This entry previously said the code was unconfirmed.
+- `1000` = Water transport (Waxholmsbolaget)
 
-Standard GTFS types (2=rail, 3=bus) are not used. Filter by `route_short_name` to find a line by its public number.
+Standard GTFS types (2=rail, 3=bus) are not used.
+
+**Never filter by `route_short_name` alone — line numbers are not unique across modes.** In this
+feed, `17` and `19` are green line metro routes *and* Waxholmsbolaget ferry routes (`route_type`
+1000); `43A`, `43B`, `43D`, `43M`, `43T` and `43X` all exist as "Ersätter Pendeltåget" replacement
+buses (`route_type` 700, `route_id` `9011001098600000-*`) alongside the real line 43 train, which
+carries its own genuine `43X` variant at `route_type` 100. A name-only match therefore picks up 219
+trips that belong to ferries and rail-replacement buses and puts them on the metro and train
+schematics. `GtfsParseService.matchesMonitoredRoute` checks name *and* `route_type` against
+`TransportMode.getGtfsRouteType()`, which is why the parsed tables are correct; both diagnostic
+scripts had the name-only bug and were corrected on 2026-08-20 by comparing them against the
+database.
 
 #### trips.txt
 
@@ -809,6 +826,89 @@ Use the Haversine formula for lat/lon distance calculations (available in standa
 
 ---
 
+### GTFS-RT TripUpdates Feed
+
+**This file claimed for months that SL published no TripUpdates feed. That was wrong**, and the claim
+had never been tested — it described what the application fetched. `TripUpdates.pb` sits at a sibling
+path to `VehiclePositions.pb` and answers HTTP 200 on the same realtime key, with no separate
+subscription. Probed 2026-08-20 with `scripts/rt_tripupdates.py`: 1620 trip updates, every one
+carrying stop_time_updates, median 14 per trip.
+
+#### Field availability
+
+| Field | Populated? | Notes |
+|---|---|---|
+| `trip.trip_id` | ✅ 99% | Primary join key, same namespace as the static feed |
+| `trip.route_id` | ❌ 0% | Absent here exactly as in VehiclePositions |
+| `trip.start_date` | ✅ 100% | |
+| `trip.schedule_relationship` | ✅ 100% | 1617 SCHEDULED, 2 ADDED, 1 CANCELED in one sample |
+| `TripUpdate.timestamp` | ✅ 100% | Advances independently of the payload — a restamp is not news |
+| `TripUpdate.delay` | ❌ 0% | The trip-level figure is never sent; read per stop instead |
+| `TripUpdate.vehicle.id` | ✅ 96% | |
+| `stop_time_update` | ✅ 100% | Median 14 per trip, max 100 |
+| `…​.stop_sequence` / `.stop_id` | ✅ 100% | `stop_id` is a **platform** id (`9022001…`), not a parent station |
+| `…​.arrival.delay` / `.time` | ✅ 99% | But see below — only meaningful for stops already passed |
+| `…​.departure.delay` / `.time` | ✅ 99% | |
+| `…​.arrival.uncertainty` | ⚠️ 27% | |
+| `…​.schedule_relationship` | ❌ 0% | |
+
+#### The feed reports backwards, and that is the whole point
+
+**Only stops the vehicle has already passed carry a measurement.** Every stop still ahead carries
+`delay = 0` and a `time` on an exact whole minute — that is the timetable, restated. Observed on a
+line 43 trip at 07:34:
+
+```
+seq 1  9022001006091002  +127s  07:24:07   PAST
+seq 2  9022001006081001   +34s  07:29:40   PAST
+seq 3  9022001006071001   +61s  07:34:08   PAST
+seq 4  9022001006061001     0s  07:36:00   future   <- timetable
+seq 5  9022001006051001     0s  07:39:00   future   <- timetable
+```
+
+So this is an **observation feed, not a prediction feed**. SL says how late a vehicle *was* at each
+platform, and says nothing about where it is going. Two consequences, and they pull in opposite
+directions:
+
+- **It is the right source for lateness**, and better than anything derivable here: a platform
+  arrival measured by SL, rather than a scheduled time interpolated from a position projected onto a
+  straight line between two stops. No `MAX_MATCH_METRES` guard, and none of the mid-segment bias that
+  interpolation carries.
+- **It cannot supply predicted times.** Feeding those future rows through would show the raw
+  timetable and would be *worse* than the current correction. The timetable-plus-offset design in
+  `GtfsPredictionUtil` stays; only where the offset comes from changes.
+
+**Read the delay off the last passed stop, never off `stop_updates[0]`.** The list begins at the
+trip's origin and keeps passed stops in it, so index 0 is how late the vehicle left its first
+station, possibly an hour earlier. `observed_delay()` in `rt_tripupdates.py` carries the corrected
+rule. A zero on a stop ahead is the *absence* of a measurement and must never be averaged in — doing
+so dilutes every real delay towards a punctual network that does not exist.
+
+#### Observed delay distribution
+
+One snapshot, 2026-08-20 07:40, a weekday morning peak. Small samples; enough to bound a threshold,
+not to hardcode one.
+
+| mode | n | min | median | p90 | max | >3 min | >5 min |
+|---|---|---|---|---|---|---|---|
+| BUS | 13 | -109s | 22s | 146s | 219s | 7% | 0% |
+| METRO | 43 | -18s | 19s | 67s | 86s | 0% | 0% |
+| TRAIN | 20 | 0s | 27s | 245s | 290s | 15% | 0% |
+
+- 76 of 84 monitored trips had a passed stop to report; the other 8 had only just left their origin,
+  so **any consumer needs a fallback** for vehicles the feed cannot yet describe.
+- Buses run genuinely **early** — 109 s at the extreme, which is a real measurement at a timing point
+  and not a coarse match. Negative delays cannot simply be clamped away.
+- The metro barely moves. A threshold shared across modes would never fire there.
+
+#### Cost of adopting it
+
+One extra fetch per poll cycle, so 24 calls/minute against the ~46 the realtime quota sustains — the
+quota stays a non-constraint. It needs its own URL property alongside
+`samtrafiken.gtfs-realtime-url`, which today names the VehiclePositions file specifically.
+
+---
+
 ### Manual File Analysis — Shell Commands Reference
 
 ```bash
@@ -854,13 +954,28 @@ not part of the build and nothing depends on them.
 | Script | What it answers |
 |---|---|
 | `rt_freshness.py` | Whether a vehicle's reported position is as fresh as the timestamp attached to it, per mode. Polls VehiclePositions for a few minutes and classifies every consecutive pair of reports as MOVED / STAMP-ONLY / FROZEN, then estimates how much of the delay we would report is really just a stale position. This is the evidence behind `GtfsPositionAnchors`. |
+| `rt_tripupdates.py` | Whether SL publishes a TripUpdates feed on our realtime key, and whether it says anything VehiclePositions does not. Probes the URL and reports a field-availability table in the same shape as the one above, then polls both feeds together and cross-tabulates every consecutive pair: did the position move, did the trip update change? The cell that decides it is FROZEN x ADVANCED — a trip update that advances while the position is frozen is an observation the geometry cannot reach. `--probe-only` answers the existence question alone, in one request. Attributes trips to lines by querying the development database rather than reading the static extract — `gtfs_trip` is already filtered to the monitored routes, and the static zip is Bronze tier at 50 calls a month so it is never downloaded from a script. |
 
 Conventions for anything added here: **no dependencies** — `rt_freshness.py` decodes the GTFS-RT
-protobuf by field number rather than pulling in `gtfs-realtime-bindings`, so it runs against a bare
-Python 3 with nothing installed. Secrets come from the environment first
-(`SAMTRAFIKEN_REALTIME_API_KEY`) and only then from the gitignored
-`application-local.properties`; they are never printed and are scrubbed from error messages.
+protobuf by field number rather than pulling in `gtfs-realtime-bindings`, and `rt_tripupdates.py`
+shells out to the `mysql` client rather than importing a driver, so both run against a bare Python 3
+with nothing installed. Secrets come from the environment first (`SAMTRAFIKEN_REALTIME_API_KEY`,
+`DB_URL` / `DB_USERNAME` / `DB_PASSWORD`) and only then from the gitignored
+`application-local.properties`; they are never printed and are scrubbed from error messages. A
+database password additionally goes into a mode-600 defaults file rather than onto the command line
+or into the environment, so it is never visible in `ps`.
 **This repository is public** — no absolute paths from a developer's machine, no host details.
+
+**The realtime feeds may be fetched freely; the static zip may not.** Realtime is 2 000 000 calls per
+rolling 30 days, so a polling run costs nothing. The static feed is Bronze at **50 calls a month**,
+and that is the same allowance the nightly pipeline lives on — five diagnostic downloads would be a
+tenth of it. Scripts therefore read static data from the database, or failing that from whatever the
+pipeline last unzipped into `/tmp/sl-gtfs-cache`; nothing here downloads `sl.zip`.
+
+**Match lines with the variant rule, never by exact name.** Line 43 also runs as 43A, 43B, 43D, 43M,
+43T and 43X. `GtfsNameUtil.baseLineName` strips one optional trailing letter and both the SQL and the
+file reader in `rt_tripupdates.py` mirror it. An exact-match filter still reports a plausible count,
+which is what makes the mistake worth naming here.
 
 Attributing a vehicle to a line needs the unzipped static extract the pipeline leaves in
 `/tmp/sl-gtfs-cache/unzipped`; `--gtfs` points at another one. The phantom-delay section greps the
@@ -890,6 +1005,14 @@ and that row by hand.
 
 `GtfsDownloadJob` (`port.incoming.scheduled`) fires at 05:00 and on `ApplicationReadyEvent`. It is guarded
 by `gtfs_download_log` (one attempt per date); the local profile adds a cap of 15 downloads per 30 days.
+
+**Under the `local` profile a successful parse also writes 10 future-dated `PARSE_DONE` placeholder rows**
+(`GtfsParseService`, `LOCAL_FUTURE_PLACEHOLDER_DAYS`). Since the guard is one attempt per date, those rows
+suppress the next ten days of downloads — deliberate protection for the 50-calls-a-month static quota, which
+a development machine starting the backend repeatedly would otherwise eat. Expect to see `gtfs_download_log`
+rows dated up to ten days ahead in a dev database, all sharing the `create_date` of the parse that wrote
+them; they are not stale data and must not be cleaned up. Production is unaffected — the block is
+profile-gated.
 `GtfsPipelineService.runPipeline()` orchestrates the phases: download → unzip → parse, then rebuilds the
 in-memory dataset and calls `verifyRealtimeFeed()` — a single realtime fetch whose result is discarded, to keep
 the realtime API exercised and to surface credential/quota/format problems in a log that is being read anyway.

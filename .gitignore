@@ -56,3 +56,9 @@ pom.xml.versionsBackup
 # commuter-infra-manual-after-phase-8.md was therefore untracked but NOT ignored — one `git add .`
 # from being public. Any -old / -v2 / -draft variant must stay covered.
 commuter-infra-manual*.md
+
+# Diagnostic scripts (scripts/). They are plain Python 3 with no dependencies and are not part of
+# the build, so the only thing they leave behind is bytecode from an import — untracked but, until
+# now, not ignored either, and so one `git add .` from landing in a public repo.
+__pycache__/
+*.pyc
