@@ -607,8 +607,8 @@ reference line throughout.
 - **Realtime feed:** GTFS Regional Realtime from Trafiklab, Protobuf. Two files on the same key, at
   sibling paths under `https://opendata.samtrafiken.se/gtfs-rt/sl/`:
   - `VehiclePositions.pb` — where vehicles are. Polled by `GtfsRealtimeService`.
-  - `TripUpdates.pb` — how late they were at the platforms they have passed. **Not fetched by the
-    application** as of 2026-08-20, but confirmed available; see below.
+  - `TripUpdates.pb` — how late they were at the platforms they have passed. Polled alongside the
+    positions since 2026-08-21; see below.
 - **API library:** `com.google.transit:gtfs-realtime-bindings:0.0.8` for Protobuf parsing
 
 ### Key Identifiers
@@ -866,23 +866,47 @@ seq 4  9022001006061001     0s  07:36:00   future   <- timetable
 seq 5  9022001006051001     0s  07:39:00   future   <- timetable
 ```
 
-So this is an **observation feed, not a prediction feed**. SL says how late a vehicle *was* at each
-platform, and says nothing about where it is going. Two consequences, and they pull in opposite
-directions:
+So for a **train** this is an observation feed, not a prediction feed: SL says how late the vehicle
+*was* at each platform, and says nothing about where it is going.
 
-- **It is the right source for lateness**, and better than anything derivable here: a platform
-  arrival measured by SL, rather than a scheduled time interpolated from a position projected onto a
-  straight line between two stops. No `MAX_MATCH_METRES` guard, and none of the mid-segment bias that
-  interpolation carries.
-- **It cannot supply predicted times.** Feeding those future rows through would show the raw
-  timetable and would be *worse* than the current correction. The timetable-plus-offset design in
-  `GtfsPredictionUtil` stays; only where the offset comes from changes.
+**But that is a property of the mode, not of the feed — corrected 2026-08-21.** The paragraph above
+generalised from one line 43 trip, and the generalisation is false for two thirds of what we monitor.
+Counting monitored trips that were mid-journey, and asking whether *any* row ahead of the vehicle
+carried a non-zero delay:
+
+| mode | in progress | with a real delay on a row ahead |
+|---|---|---|
+| TRAIN | 15 | **0** |
+| BUS | 7 | 7 |
+| METRO | 42 | 42 |
+
+Buses and the metro do get genuine forward predictions; trains get the timetable restated. Both
+halves matter:
+
+- **The zeros ahead are a trap, and the trap is live.** A row ahead with `delay = 0` sits at a
+  timetable time, and for a late vehicle that time has often already passed — so "take the last row
+  timed before now" reads a zero and reports a late train as punctual, precisely for the vehicles the
+  whole exercise is about. Seen in a single snapshot: `seq 22 +131s 07:12:11` followed by
+  `seq 23 +0s 07:13` with the clock at 07:14. The application's rule therefore bounds the search by
+  **stop sequence**, taken from where the geometry places the vehicle, and never by the clock — see
+  `GtfsTripUpdate.delayAtOrBefore`.
+- **The forward predictions on buses and the metro are unused, and are a real improvement left on the
+  table.** They are SL's own prediction for the stop the vehicle is heading to, where we currently use
+  its measurement at the stop behind it. Adopting them needs a way to tell a genuine "predicted on
+  time" from a timetable zero, which a non-zero delay gives directly and an exact zero does not.
 
 **Read the delay off the last passed stop, never off `stop_updates[0]`.** The list begins at the
 trip's origin and keeps passed stops in it, so index 0 is how late the vehicle left its first
 station, possibly an hour earlier. `observed_delay()` in `rt_tripupdates.py` carries the corrected
-rule. A zero on a stop ahead is the *absence* of a measurement and must never be averaged in — doing
-so dilutes every real delay towards a punctual network that does not exist.
+rule — though note that its own boundary is the clock, which the finding above shows to be the unsafe
+choice; the application does not follow it there. A zero from a stop ahead is the *absence* of a
+measurement and must never be averaged in — doing so dilutes every real delay towards a punctual
+network that does not exist.
+
+**It still cannot supply predicted times**, for any mode. What a forward row carries is a delay and a
+time for *one* stop, not a running prediction for the rest of the trip, and on the trains it carries
+nothing at all. The timetable-plus-offset design in `GtfsPredictionUtil` stays; only where the offset
+comes from changed.
 
 #### Observed delay distribution
 
@@ -901,11 +925,24 @@ not to hardcode one.
   and not a coarse match. Negative delays cannot simply be clamped away.
 - The metro barely moves. A threshold shared across modes would never fire there.
 
-#### Cost of adopting it
+#### Adopted 2026-08-21
 
-One extra fetch per poll cycle, so 24 calls/minute against the ~46 the realtime quota sustains — the
-quota stays a non-constraint. It needs its own URL property alongside
-`samtrafiken.gtfs-realtime-url`, which today names the VehiclePositions file specifically.
+`SamtrafikenProvider.fetchTripUpdates()` returns the measured delays keyed by trip id, fetched in the
+same poll cycle as the positions so the two views of a vehicle are never a cycle apart. It has its own
+`samtrafiken.gtfs-trip-updates-url`, since `samtrafiken.gtfs-realtime-url` names the VehiclePositions
+file specifically. Cost is one extra fetch per cycle — 24 calls/minute against the ~46 the realtime
+quota sustains, so the quota stays a non-constraint.
+
+- **A trip update failure does not fail the cycle.** Positions are load-bearing and take the cycle
+  down with them; trip updates degrade to the geometric delay that was the only source before, so
+  `GtfsRealtimeCache.fetchTripUpdates()` logs and returns an empty map.
+- **Only rows carrying a delay are kept**, and a trip with none is dropped rather than stored empty —
+  an empty entry reads as a measured zero to anyone who forgets to check. Live counts: 1505 of 1510
+  trips, 25044 delay rows.
+- **`hasDelay()`, never `getDelay()` alone.** Protobuf answers 0 for an unset field, which is the one
+  value that must not be mistaken for a measurement.
+- `GtfsPipelineService.verifyRealtimeFeed()` now checks both feeds, separately, so one failing does
+  not stop the other being checked and the log names which is down.
 
 ---
 

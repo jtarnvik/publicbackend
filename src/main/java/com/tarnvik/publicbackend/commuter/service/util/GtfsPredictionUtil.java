@@ -2,6 +2,7 @@ package com.tarnvik.publicbackend.commuter.service.util;
 
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeInfo;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripUpdate;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.DelaySource;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveStop;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveTrip;
@@ -30,22 +31,24 @@ import java.util.Optional;
  * ahead. A scheduled time served as-is would therefore be wrong by exactly however late the vehicle is
  * running, which is precisely when someone is looking at the view.
  * <p>
- * The application fetches only VehiclePositions today, so the correction below is also where the delay
- * itself comes from. When TripUpdates is adopted it replaces this arithmetic and nothing else — the
- * timetable-plus-offset design survives it, only the provenance of the offset changes.
+ * <b>Two sources of that offset, in order.</b> SL's own measurement at the last platform the vehicle passed
+ * ({@link GtfsTripUpdate}) is preferred wherever there is one: it is recorded rather than inferred, so it
+ * carries neither the projection's mid-segment bias nor its distance guard. The geometry below is the
+ * fallback, and it is needed — roughly one vehicle in ten has only just left its origin and has no passed
+ * platform to report.
  * <p>
- * The delay is derived from the one thing the positions feed does give: where the vehicle actually is. The
- * same projection that places a vehicle on the group's chain is run a second time against the vehicle's
- * <em>own</em> trip, the scheduled time at that point is interpolated, and the difference from the moment
- * the vehicle was at that position is the delay. Every remaining scheduled time is shifted by it.
+ * The geometric delay is derived from the one thing the positions feed does give: where the vehicle actually
+ * is. The same projection that places a vehicle on the group's chain is run a second time against the
+ * vehicle's <em>own</em> trip, the scheduled time at that point is interpolated, and the difference from the
+ * moment the vehicle was at that position is the delay. Every remaining scheduled time is shifted by it.
  * <p>
  * That moment is supplied by the caller and is <b>not</b> the same thing as the report's timestamp — see
  * {@code GtfsPositionAnchors}, which exists because the train feed refreshes timestamps against positions
  * it has not updated, and every second of that gap would otherwise be read as delay.
  * <p>
  * Two guards keep a poor geometric match from producing a confident wrong answer: a projection further than
- * {@link #MAX_MATCH_METRES} from the trip yields <em>no</em> delay at all and the plain timetable, and a
- * delay that is measured is clamped to {@link #MAX_DELAY}. Both failures look the same from outside — a bus
+ * {@link #MAX_MATCH_METRES} from the trip yields <em>no</em> geometric delay at all and the plain timetable,
+ * and a delay from either source is clamped to {@link #MAX_DELAY}. Both failures look the same from outside — a bus
  * on a diversion and a bus whose trip id points at the wrong journey both project badly — so neither is
  * treated as an error.
  * <p>
@@ -80,8 +83,10 @@ public class GtfsPredictionUtil {
    * @param vehicle    the located vehicle, carrying its own trip and its position report
    * @param observedAt when the vehicle was at the position it is reporting — the anchored moment, not the
    *                   report's own timestamp
+   * @param tripUpdate what SL has measured about this trip, or null when the feed has nothing on it
    */
-  public static VehiclePrediction predict(LiveTrip chain, LiveVehicle vehicle, Instant observedAt) {
+  public static VehiclePrediction predict(LiveTrip chain, LiveVehicle vehicle, Instant observedAt,
+                                          GtfsTripUpdate tripUpdate) {
     List<GtfsStopTimeInfo> stopTimes = vehicle.getTrip().getStopTimes();
     List<GtfsStopInfo> ownStops = ownStops(stopTimes);
     if (ownStops.size() < 2) {
@@ -90,17 +95,47 @@ public class GtfsPredictionUtil {
     try {
       LocalDate serviceDate = GtfsTimeUtil.resolveServiceDate(stopTimes, observedAt);
       VehicleLocation onOwnTrip = GtfsGeometryUtil.locateOnRoute(ownStops, vehicle.getPosition());
-      Duration delay = estimateDelay(stopTimes, serviceDate, onOwnTrip, observedAt);
+      DelaySource source = DelaySource.TRIP_UPDATES;
+      Duration delay = measuredDelay(stopTimes, onOwnTrip, tripUpdate);
+      if (delay == null) {
+        source = DelaySource.GEOMETRY;
+        delay = estimateDelay(stopTimes, serviceDate, onOwnTrip, observedAt);
+      }
       Map<String, Instant> departuresAhead = departuresAhead(stopTimes, serviceDate, onOwnTrip, delay);
       List<StopPrediction> stopPredictions = alongChain(chain, vehicle, departuresAhead);
       if (delay == null) {
         return VehiclePrediction.uncorrected(stopPredictions);
       }
-      return new VehiclePrediction(delay, DelaySource.GEOMETRY, stopPredictions);
+      return new VehiclePrediction(delay, source, stopPredictions);
     } catch (IllegalArgumentException e) {
       log.warn("No predictions for trip {}: {}", vehicle.getTrip().getTripId(), e.getMessage());
       return VehiclePrediction.none();
     }
+  }
+
+  /**
+   * SL's own delay at the last platform this vehicle passed, or null when the feed has nothing to say about
+   * the trip yet.
+   * <p>
+   * <b>The geometry decides which measurement is current, not the clock.</b> A trip update's rows carry no
+   * marker for where the vehicle has got to, and the rows ahead of it hold the raw timetable — whose times
+   * have, for a late vehicle, often already passed. Choosing by "everything timed before now" would
+   * therefore admit a zero from a stop ahead precisely for the vehicles that are late, and report them
+   * punctual. The projected segment gives the boundary directly instead.
+   * <p>
+   * No distance guard here, unlike {@link #estimateDelay}: that guard exists because interpolating a
+   * scheduled time along a chord far from the track is meaningless, whereas asking which stops a vehicle
+   * has passed survives a poor projection easily. The worst a bad match can do here is pick a measurement
+   * a stop or two stale — still SL's own reading of this trip, which is a far milder error than a
+   * fabricated zero.
+   */
+  private static Duration measuredDelay(List<GtfsStopTimeInfo> stopTimes, VehicleLocation onOwnTrip,
+                                        GtfsTripUpdate tripUpdate) {
+    if (tripUpdate == null) {
+      return null;
+    }
+    int passedSequence = stopTimes.get(onOwnTrip.segIdx()).getStopSequence();
+    return tripUpdate.delayAtOrBefore(passedSequence).map(GtfsPredictionUtil::clamp).orElse(null);
   }
 
   /**

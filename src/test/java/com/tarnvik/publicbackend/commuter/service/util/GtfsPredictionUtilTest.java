@@ -3,6 +3,8 @@ package com.tarnvik.publicbackend.commuter.service.util;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripUpdate;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripUpdate.StopDelay;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsVehiclePosition;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveTrip;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveVehicle;
@@ -98,12 +100,17 @@ class GtfsPredictionUtilTest {
     return new LiveTrip(downwardTrip(), List.of());
   }
 
+  /** Most of these tests are about the geometry, which is what runs when SL has measured nothing. */
+  private static VehiclePrediction predict(LiveTrip chain, LiveVehicle vehicle, Instant observedAt) {
+    return GtfsPredictionUtil.predict(chain, vehicle, observedAt, null);
+  }
+
   @Test
   void aPunctualVehiclePredictsItsTimetable() throws Exception {
     LiveTrip chain = chain();
     LiveVehicle atB = vehicle(chain, downwardTrip(), 59.001, LON, B_ON_TIME);
 
-    VehiclePrediction prediction = GtfsPredictionUtil.predict(chain, atB, B_ON_TIME);
+    VehiclePrediction prediction = predict(chain, atB, B_ON_TIME);
 
     assertThat(prediction.stopPredictions()).extracting(StopPrediction::stopId)
       .containsExactly(STATION_B, STATION_C);
@@ -119,7 +126,7 @@ class GtfsPredictionUtilTest {
     // At B, but reporting five minutes after it was due there.
     LiveVehicle atB = vehicle(chain, downwardTrip(), 59.001, LON, B_ON_TIME.plusSeconds(300));
 
-    VehiclePrediction prediction = GtfsPredictionUtil.predict(chain, atB, B_ON_TIME.plusSeconds(300));
+    VehiclePrediction prediction = predict(chain, atB, B_ON_TIME.plusSeconds(300));
 
     assertThat(prediction.stopPredictions()).extracting(StopPrediction::departure)
       .containsExactly(B_ON_TIME.plusSeconds(300), C_ON_TIME.plusSeconds(300));
@@ -133,7 +140,7 @@ class GtfsPredictionUtilTest {
     // Halfway between B and C, running the other way, on time for that point.
     LiveVehicle betweenCandB = vehicle(chain, upwardTrip(), 59.0015, LON, HALFWAY);
 
-    VehiclePrediction prediction = GtfsPredictionUtil.predict(chain, betweenCandB, HALFWAY);
+    VehiclePrediction prediction = predict(chain, betweenCandB, HALFWAY);
 
     assertThat(prediction.stopPredictions()).extracting(StopPrediction::stopId)
       .containsExactly(STATION_B, STATION_A);
@@ -149,7 +156,7 @@ class GtfsPredictionUtilTest {
       stopTime(2, B, "08:10:00", 111.0)));
     LiveVehicle betweenAandB = vehicle(chain, shortTurn, 59.0005, LON, HALFWAY);
 
-    VehiclePrediction prediction = GtfsPredictionUtil.predict(chain, betweenAandB, HALFWAY);
+    VehiclePrediction prediction = predict(chain, betweenAandB, HALFWAY);
 
     assertThat(prediction.stopPredictions()).extracting(StopPrediction::stopId).containsExactly(STATION_B);
   }
@@ -161,7 +168,7 @@ class GtfsPredictionUtilTest {
     // so the delay must be discarded rather than applied.
     LiveVehicle astray = vehicle(chain, downwardTrip(), 59.0005, 18.05, AN_HOUR_LATE);
 
-    VehiclePrediction prediction = GtfsPredictionUtil.predict(chain, astray, AN_HOUR_LATE);
+    VehiclePrediction prediction = predict(chain, astray, AN_HOUR_LATE);
 
     assertThat(prediction.stopPredictions()).extracting(StopPrediction::departure)
       .containsExactly(B_ON_TIME, C_ON_TIME);
@@ -177,7 +184,7 @@ class GtfsPredictionUtilTest {
     // about a bad trip match than about the traffic.
     LiveVehicle atB = vehicle(chain, downwardTrip(), 59.001, LON, B_ON_TIME.plusSeconds(80 * 60));
 
-    VehiclePrediction prediction = GtfsPredictionUtil.predict(chain, atB, B_ON_TIME.plusSeconds(80 * 60));
+    VehiclePrediction prediction = predict(chain, atB, B_ON_TIME.plusSeconds(80 * 60));
 
     assertThat(prediction.stopPredictions()).extracting(StopPrediction::departure)
       .containsExactly(B_ON_TIME.plusSeconds(30 * 60), C_ON_TIME.plusSeconds(30 * 60));
@@ -190,9 +197,100 @@ class GtfsPredictionUtilTest {
     LiveTrip chain = chain();
     LiveVehicle atC = vehicle(chain, downwardTrip(), 59.002, LON, C_ON_TIME);
 
-    VehiclePrediction prediction = GtfsPredictionUtil.predict(chain, atC, C_ON_TIME);
+    VehiclePrediction prediction = predict(chain, atC, C_ON_TIME);
 
     assertThat(prediction.stopPredictions()).extracting(StopPrediction::stopId).containsExactly(STATION_C);
+  }
+
+  /**
+   * The vehicle is past B and running to time by its position, but SL recorded it three minutes late
+   * leaving B. The measurement wins: it is a platform reading rather than a projection onto a straight
+   * line, and every remaining stop is shifted by it.
+   */
+  @Test
+  void aMeasuredDelayIsPreferredToTheGeometricOne() throws Exception {
+    LiveTrip chain = chain();
+    LiveVehicle betweenBandC = vehicle(chain, downwardTrip(), 59.0015, LON, HALFWAY);
+    GtfsTripUpdate measured = new GtfsTripUpdate("t1", List.of(
+      new StopDelay(1, 12), new StopDelay(2, 180), new StopDelay(3, 0)));
+
+    VehiclePrediction prediction = GtfsPredictionUtil.predict(chain, betweenBandC, HALFWAY, measured);
+
+    assertThat(prediction.delay()).isEqualTo(Duration.ofMinutes(3));
+    assertThat(prediction.delaySource()).isEqualTo(DelaySource.TRIP_UPDATES);
+    assertThat(prediction.stopPredictions()).extracting(StopPrediction::departure)
+      .containsExactly(C_ON_TIME.plusSeconds(180));
+  }
+
+  /**
+   * A vehicle standing at a platform projects onto the segment it has just finished, so it reads the
+   * measurement from the stop <em>before</em> the one it is at — here A's twelve seconds rather than B's
+   * three minutes, although SL has already recorded the arrival at B.
+   * <p>
+   * Deliberate, and the safe half of an unavoidable trade. Advancing to the next stop whenever a vehicle
+   * projects near it would read a stop the vehicle is merely <em>approaching</em>, and that row carries the
+   * timetable's zero — reporting a late vehicle as punctual, which is the one failure this design exists to
+   * prevent. The cost is a delay one inter-stop interval stale, over which the figure moves by seconds.
+   */
+  @Test
+  void aVehicleStandingAtAPlatformReadsTheStopBeforeIt() throws Exception {
+    LiveTrip chain = chain();
+    LiveVehicle atB = vehicle(chain, downwardTrip(), 59.001, LON, B_ON_TIME);
+    GtfsTripUpdate measured = new GtfsTripUpdate("t1", List.of(
+      new StopDelay(1, 12), new StopDelay(2, 180), new StopDelay(3, 0)));
+
+    VehiclePrediction prediction = GtfsPredictionUtil.predict(chain, atB, B_ON_TIME, measured);
+
+    assertThat(prediction.delay()).isEqualTo(Duration.ofSeconds(12));
+    assertThat(prediction.delaySource()).isEqualTo(DelaySource.TRIP_UPDATES);
+  }
+
+  /**
+   * The vehicle is between A and B, so only the row for A is behind it. Reading the zero on B — which is
+   * the timetable restated, not a measurement — would report this late vehicle as punctual.
+   */
+  @Test
+  void aZeroFromAStopAheadIsNotRead() throws Exception {
+    LiveTrip chain = chain();
+    LiveVehicle betweenAandB = vehicle(chain, downwardTrip(), 59.0005, LON, HALFWAY);
+    GtfsTripUpdate measured = new GtfsTripUpdate("t1", List.of(
+      new StopDelay(1, 240), new StopDelay(2, 0), new StopDelay(3, 0)));
+
+    VehiclePrediction prediction = GtfsPredictionUtil.predict(chain, betweenAandB, HALFWAY, measured);
+
+    assertThat(prediction.delay()).isEqualTo(Duration.ofMinutes(4));
+    assertThat(prediction.delaySource()).isEqualTo(DelaySource.TRIP_UPDATES);
+  }
+
+  /** Roughly one vehicle in ten has no passed platform to report, and the geometry still has to answer. */
+  @Test
+  void aTripTheFeedHasNothingOnFallsBackToTheGeometry() throws Exception {
+    LiveTrip chain = chain();
+    LiveVehicle atB = vehicle(chain, downwardTrip(), 59.001, LON, B_ON_TIME.plusSeconds(300));
+    GtfsTripUpdate nothingPassed = new GtfsTripUpdate("t1", List.of(new StopDelay(3, 0)));
+
+    VehiclePrediction prediction =
+      GtfsPredictionUtil.predict(chain, atB, B_ON_TIME.plusSeconds(300), nothingPassed);
+
+    assertThat(prediction.delay()).isEqualTo(Duration.ofMinutes(5));
+    assertThat(prediction.delaySource()).isEqualTo(DelaySource.GEOMETRY);
+  }
+
+  /**
+   * The distance guard belongs to the geometry alone. Asking which stops a vehicle has passed survives a
+   * projection that is far too poor to interpolate a scheduled time along, so a measurement is still served
+   * where the geometry has to give up.
+   */
+  @Test
+  void aMeasuredDelayIsServedEvenWhereTheGeometryGivesUp() throws Exception {
+    LiveTrip chain = chain();
+    LiveVehicle astray = vehicle(chain, downwardTrip(), 59.0005, 18.05, AN_HOUR_LATE);
+    GtfsTripUpdate measured = new GtfsTripUpdate("t1", List.of(new StopDelay(1, 90)));
+
+    VehiclePrediction prediction = GtfsPredictionUtil.predict(chain, astray, AN_HOUR_LATE, measured);
+
+    assertThat(prediction.delay()).isEqualTo(Duration.ofSeconds(90));
+    assertThat(prediction.delaySource()).isEqualTo(DelaySource.TRIP_UPDATES);
   }
 
   @Test
@@ -201,7 +299,7 @@ class GtfsPredictionUtilTest {
     GtfsTripInfo oneStop = trip(0, List.of(stopTime(1, A, "08:00:00", 0.0)));
     LiveVehicle atA = vehicle(chain, oneStop, 59.000, LON, A_ON_TIME);
 
-    VehiclePrediction prediction = GtfsPredictionUtil.predict(chain, atA, A_ON_TIME);
+    VehiclePrediction prediction = predict(chain, atA, A_ON_TIME);
 
     assertThat(prediction.stopPredictions()).isEmpty();
     assertThat(prediction.delay()).isNull();

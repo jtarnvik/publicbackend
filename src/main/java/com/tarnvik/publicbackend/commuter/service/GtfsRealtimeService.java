@@ -7,6 +7,7 @@ import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsDataset;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsRouteInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripInfo;
+import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsTripUpdate;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsVehiclePosition;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.GroupKey;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveStop;
@@ -72,6 +73,18 @@ public class GtfsRealtimeService {
   private record FocusRange(int startIdx, int endIdx) {}
 
   /**
+   * One poll cycle's view of the traffic: where the monitored vehicles are, and how late SL last measured
+   * them to be.
+   * <p>
+   * The two feeds are fetched and cached together rather than separately so that the two views of a vehicle
+   * are never a cycle apart — a position from one moment corrected by a delay from another would be worse
+   * than either alone. {@code tripUpdatesByTripId} is empty, never null, when that feed failed: it is the
+   * newer and less load-bearing of the two, and the geometry it replaces is still there to fall back to.
+   */
+  private record RealtimeSnapshot(Map<GtfsRouteInfo, List<GtfsVehiclePosition>> vehiclesByRoute,
+                                  Map<String, GtfsTripUpdate> tripUpdatesByTripId) {}
+
+  /**
    * The live picture of one route group: every vehicle currently running on it, placed on its route.
    * <p>
    * Vehicles are always located against the group's <em>full</em> chain — cropping is applied afterwards, so
@@ -101,21 +114,22 @@ public class GtfsRealtimeService {
         }
       }
 
-      Optional<Map<GtfsRouteInfo, List<GtfsVehiclePosition>>> cached = gtfsCache.getContinously();
+      Optional<RealtimeSnapshot> cached = gtfsCache.getContinously();
       if (cached.isEmpty()) {
         return RouteData.builder().status(STATUS_NO_STATIC_DATA).vehicles(List.of()).build();
       }
+      RealtimeSnapshot snapshot = cached.get();
 
       // One instant for the whole request, so every vehicle's predictions are measured against the same
       // moment rather than drifting apart across the loop.
       Instant now = Instant.now();
       List<LiveVehicle> located = new ArrayList<>();
-      for (Map.Entry<GtfsRouteInfo, List<GtfsVehiclePosition>> entry : cached.get().entrySet()) {
+      for (Map.Entry<GtfsRouteInfo, List<GtfsVehiclePosition>> entry : snapshot.vehiclesByRoute().entrySet()) {
         if (!matchesGroup(entry.getKey(), transportMode, routeGroup)) {
           continue;
         }
         for (GtfsVehiclePosition vp : entry.getValue()) {
-          locate(dataset, fullTrip, vp, now).ifPresent(located::add);
+          locate(dataset, fullTrip, vp, now, snapshot).ifPresent(located::add);
         }
       }
 
@@ -156,11 +170,11 @@ public class GtfsRealtimeService {
           query.getStopAreaName());
         return ResolvedTrip.of(ResolveOutcome.NO_MATCH);
       }
-      Optional<Map<GtfsRouteInfo, List<GtfsVehiclePosition>>> cached = gtfsCache.getContinously();
+      Optional<RealtimeSnapshot> cached = gtfsCache.getContinously();
       if (cached.isEmpty()) {
         return ResolvedTrip.of(ResolveOutcome.NO_LIVE_DATA);
       }
-      return findMatch(dataset, cached.get(), query, parentStationId.get());
+      return findMatch(dataset, cached.get().vehiclesByRoute(), query, parentStationId.get());
     } catch (Exception e) {
       log.warn("Resolving a trip for {}/{} failed: {}", query.getTransportMode(), query.getRouteGroup(),
         e.getMessage(), e);
@@ -354,7 +368,7 @@ public class GtfsRealtimeService {
    * has fewer than two stops — a single stop has no segment to project onto.
    */
   private Optional<LiveVehicle> locate(GtfsDataset dataset, LiveTrip liveTrip, GtfsVehiclePosition vp,
-                                       Instant now) {
+                                       Instant now, RealtimeSnapshot snapshot) {
     Optional<GtfsTripInfo> maybeTrip = dataset.findTripByTripId(vp.getTripId());
     if (maybeTrip.isEmpty()) {
       return Optional.empty();
@@ -371,7 +385,8 @@ public class GtfsRealtimeService {
       .build();
     // Predicted against the full chain for the same reason the geometry is: what the caller asked to see
     // must not change where anything is, only how much of it is sent.
-    VehiclePrediction prediction = GtfsPredictionUtil.predict(liveTrip, vehicle, observedAt);
+    GtfsTripUpdate tripUpdate = snapshot.tripUpdatesByTripId().get(vp.getTripId());
+    VehiclePrediction prediction = GtfsPredictionUtil.predict(liveTrip, vehicle, observedAt, tripUpdate);
     return Optional.of(vehicle.toBuilder()
       .delay(prediction.delay())
       .delaySource(prediction.delaySource())
@@ -413,19 +428,20 @@ public class GtfsRealtimeService {
 
     private final AtomicBoolean loopActive = new AtomicBoolean(false);
     private volatile Instant windowEnd = Instant.EPOCH;
-    private volatile Map<GtfsRouteInfo, List<GtfsVehiclePosition>> lastResult;
+    private volatile RealtimeSnapshot lastResult;
 
-    public Optional<Map<GtfsRouteInfo, List<GtfsVehiclePosition>>> getContinously() {
+    public Optional<RealtimeSnapshot> getContinously() {
       windowEnd = Instant.now().plus(ACTIVE_WINDOW);
 
-      Map<GtfsRouteInfo, List<GtfsVehiclePosition>> cached = lastResult;
+      RealtimeSnapshot cached = lastResult;
       if (loopActive.get() && cached != null) {
-        log.debug("GTFS-RT cache hit — poll loop active, returning cached value ({} routes)", cached.size());
+        log.debug("GTFS-RT cache hit — poll loop active, returning cached value ({} routes)",
+          cached.vehiclesByRoute().size());
         return Optional.of(cached);
       }
 
       log.info("GTFS-RT cache cold — fetching directly");
-      Optional<Map<GtfsRouteInfo, List<GtfsVehiclePosition>>> direct = getDirect();
+      Optional<RealtimeSnapshot> direct = getDirect();
       direct.ifPresent(result -> {
         lastResult = result;
         startLoop();
@@ -502,7 +518,7 @@ public class GtfsRealtimeService {
       }
     }
 
-    public Optional<Map<GtfsRouteInfo, List<GtfsVehiclePosition>>> getDirect() {
+    public Optional<RealtimeSnapshot> getDirect() {
       try {
         final GtfsDataset dataset = gtfsAccessService.getDataset();
         if (dataset.isEmpty()) {
@@ -533,15 +549,35 @@ public class GtfsRealtimeService {
         // and anchoring the rest would keep a thousand entries nothing ever predicts against.
         positionAnchors.update(monitored);
 
+        Map<String, GtfsTripUpdate> tripUpdates = fetchTripUpdates();
+
         // Trace: one line per poll cycle. Kept because it is the only place the fetch/join split is
         // measured — raise it to info when the timings need looking at again.
-        log.trace("GTFS-RT direct — {} vehicles in feed, {} on monitored lines, {} routes, {} anchored; "
-            + "fetch={}ms, join={}ms, total={}ms",
+        log.trace("GTFS-RT direct — {} vehicles in feed, {} on monitored lines, {} routes, {} anchored, "
+            + "{} trips with a measured delay; fetch={}ms, join={}ms, total={}ms",
           gtfsVehiclePositions.size(), monitored.size(), vpByRoute.size(), positionAnchors.size(),
-          fetchMs, joinMs, fetchMs + joinMs);
-        return Optional.of(vpByRoute);
+          tripUpdates.size(), fetchMs, joinMs, fetchMs + joinMs);
+        return Optional.of(new RealtimeSnapshot(vpByRoute, tripUpdates));
       } catch (Exception e) {
         throw new RuntimeException(e);
+      }
+    }
+
+    /**
+     * The measured delays for this cycle, or an empty map if that feed failed.
+     * <p>
+     * Deliberately softer than the positions fetch, which takes the whole cycle down with it: without
+     * positions there is nothing to draw, whereas without trip updates every vehicle simply falls back to
+     * the geometric delay that was the only source until this feed was adopted. Losing the better number
+     * is not a reason to lose the view.
+     */
+    private Map<String, GtfsTripUpdate> fetchTripUpdates() {
+      try {
+        return samtrafikenProvider.fetchTripUpdates();
+      } catch (Exception e) {
+        log.warn("GTFS-RT trip updates failed — falling back to geometric delays this cycle: {}",
+          e.getMessage());
+        return Map.of();
       }
     }
   }
