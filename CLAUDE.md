@@ -895,6 +895,14 @@ halves matter:
   its measurement at the stop behind it. Adopting them needs a way to tell a genuine "predicted on
   time" from a timetable zero, which a non-zero delay gives directly and an exact zero does not.
 
+*The instrument was wrong twice before it was right, which is worth remembering the next time a feed is
+probed.* `observed_delay()` first read `stop_updates[0]` — the trip's **origin**, not its latest stop — so
+the first delay distribution described how late each train had left an hour earlier. And the change detector
+fingerprinted the first three stop_time_updates, which for a vehicle mid-journey are past stops whose delays
+are final and never change again; it therefore reported 68% "static" for a feed that was updating normally.
+Both were caught only by reading one train's raw stop list against the wall clock — which is the lesson: a
+plausible aggregate is not evidence, and a single hand-checked example is.
+
 **Read the delay off the last passed stop, never off `stop_updates[0]`.** The list begins at the
 trip's origin and keeps passed stops in it, so index 0 is how late the vehicle left its first
 station, possibly an hour earlier. `observed_delay()` in `rt_tripupdates.py` carries the corrected
@@ -991,6 +999,7 @@ not part of the build and nothing depends on them.
 | Script | What it answers |
 |---|---|
 | `rt_freshness.py` | Whether a vehicle's reported position is as fresh as the timestamp attached to it, per mode. Polls VehiclePositions for a few minutes and classifies every consecutive pair of reports as MOVED / STAMP-ONLY / FROZEN, then estimates how much of the delay we would report is really just a stale position. This is the evidence behind `GtfsPositionAnchors`. |
+| `bus_data_check.py` | Whether missing bus data is upstream or ours. Asks four independent sides of the same question — the key-free SL departures API, VehiclePositions, TripUpdates, and our own static tables — because empty realtime results prove nothing alone: a feed with no buses and a feed full of buses we can no longer recognise look identical from inside the application. The decisive part is per-line live coverage at one stop: lines with vehicles en route beside lines with none, at the same stop at the same moment, is SL tracking some and not others. `--stop <name>` checks any stop, `--skip-realtime` needs no key. Used 2026-08-21, when 12 of 14 bus lines at Brommaplan had nothing en route while 176 and 177 did. |
 | `rt_tripupdates.py` | Whether SL publishes a TripUpdates feed on our realtime key, and whether it says anything VehiclePositions does not. Probes the URL and reports a field-availability table in the same shape as the one above, then polls both feeds together and cross-tabulates every consecutive pair: did the position move, did the trip update change? The cell that decides it is FROZEN x ADVANCED — a trip update that advances while the position is frozen is an observation the geometry cannot reach. `--probe-only` answers the existence question alone, in one request. Attributes trips to lines by querying the development database rather than reading the static extract — `gtfs_trip` is already filtered to the monitored routes, and the static zip is Bronze tier at 50 calls a month so it is never downloaded from a script. |
 
 Conventions for anything added here: **no dependencies** — `rt_freshness.py` decodes the GTFS-RT
