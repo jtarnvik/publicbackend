@@ -2,6 +2,7 @@ package com.tarnvik.publicbackend.commuter.port.incoming.rest.mapper;
 
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -39,5 +40,18 @@ public class DateConverter {
       return 0;
     }
     return instant.getEpochSecond();
+  }
+
+  /**
+   * A duration as whole seconds, boxed so that null survives the crossing. Unlike {@link #toEpochSeconds},
+   * null here is a value a caller really can produce and really does mean something — an unknown delay, as
+   * against a measured zero — so it must not be flattened to 0.
+   */
+  @DurationSeconds
+  public Integer toSeconds(Duration duration) {
+    if (duration == null) {
+      return null;
+    }
+    return (int) duration.toSeconds();
   }
 }

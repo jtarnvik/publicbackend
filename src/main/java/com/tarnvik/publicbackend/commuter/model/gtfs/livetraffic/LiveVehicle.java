@@ -8,6 +8,8 @@ import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil.VehicleL
 import lombok.Builder;
 import lombok.Value;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -40,6 +42,27 @@ public class LiveVehicle {
    */
   @Builder.Default
   List<StopPrediction> stopPredictions = List.of();
+
+  /**
+   * How far behind its timetable the vehicle is running, negative when it is early. <b>Null means unknown</b>
+   * — no measurement could be made — and is deliberately distinct from a measured zero, which means the
+   * vehicle is on time. The two used to be the same value, which would have let an aggregate over a line
+   * quietly average absent measurements in as punctuality.
+   */
+  Duration delay;
+
+  /** Where {@link #delay} came from, and therefore how much to trust it. Null exactly when the delay is. */
+  DelaySource delaySource;
+
+  /**
+   * When the vehicle was at the position it is reporting — the anchored moment from
+   * {@code GtfsPositionAnchors}, not the timestamp the feed attached to the report.
+   * <p>
+   * Carried here because it is what everything else about this vehicle is measured from, and because the age
+   * of a position is the honest measure of how much the drawn triangle can be trusted. Deriving it again
+   * downstream is not possible: the anchor map is what knows a restamped position from a fresh one.
+   */
+  Instant observedAt;
 
   /**
    * Where this vehicle actually terminates, which is not necessarily the end of the group's chain — short

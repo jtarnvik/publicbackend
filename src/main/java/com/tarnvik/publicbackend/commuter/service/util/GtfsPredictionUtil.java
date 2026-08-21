@@ -2,10 +2,12 @@ package com.tarnvik.publicbackend.commuter.service.util;
 
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopInfo;
 import com.tarnvik.publicbackend.commuter.model.gtfs.GtfsStopTimeInfo;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.DelaySource;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveStop;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveTrip;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.LiveVehicle;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.StopPrediction;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.VehiclePrediction;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.util.GtfsUtil;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil.VehicleLocation;
 import lombok.extern.slf4j.Slf4j;
@@ -22,12 +24,17 @@ import java.util.Optional;
 /**
  * Works out when a vehicle will leave each of the stops still ahead of it.
  * <p>
- * <b>The timetable is the only source of times, and it is corrected rather than trusted.</b> Samtrafiken
- * serves VehiclePositions and nothing else — there is no TripUpdates feed, so no predicted times and no
- * delay figure arrive from upstream. A raw scheduled time would therefore be wrong by exactly however late
- * the vehicle is running, which is precisely when someone is looking at the view.
+ * <b>The timetable is the only source of times, and it is corrected rather than trusted.</b> Nothing
+ * upstream publishes a predicted time: Samtrafiken's TripUpdates feed exists, but it reports how late a
+ * vehicle <em>was</em> at platforms it has already passed and restates the raw timetable for every stop
+ * ahead. A scheduled time served as-is would therefore be wrong by exactly however late the vehicle is
+ * running, which is precisely when someone is looking at the view.
  * <p>
- * The delay is instead derived from the one thing the feed does give: where the vehicle actually is. The
+ * The application fetches only VehiclePositions today, so the correction below is also where the delay
+ * itself comes from. When TripUpdates is adopted it replaces this arithmetic and nothing else — the
+ * timetable-plus-offset design survives it, only the provenance of the offset changes.
+ * <p>
+ * The delay is derived from the one thing the positions feed does give: where the vehicle actually is. The
  * same projection that places a vehicle on the group's chain is run a second time against the vehicle's
  * <em>own</em> trip, the scheduled time at that point is interpolated, and the difference from the moment
  * the vehicle was at that position is the delay. Every remaining scheduled time is shifted by it.
@@ -37,9 +44,15 @@ import java.util.Optional;
  * it has not updated, and every second of that gap would otherwise be read as delay.
  * <p>
  * Two guards keep a poor geometric match from producing a confident wrong answer: a projection further than
- * {@link #MAX_MATCH_METRES} from the trip falls back to the plain timetable, and the delay is clamped to
- * {@link #MAX_DELAY} either way. Both failures look the same from outside — a bus on a diversion and a bus
- * whose trip id points at the wrong journey both project badly — so neither is treated as an error.
+ * {@link #MAX_MATCH_METRES} from the trip yields <em>no</em> delay at all and the plain timetable, and a
+ * delay that is measured is clamped to {@link #MAX_DELAY}. Both failures look the same from outside — a bus
+ * on a diversion and a bus whose trip id points at the wrong journey both project badly — so neither is
+ * treated as an error.
+ * <p>
+ * <b>An unusable projection produces a null delay, not a zero one.</b> The two were the same value until the
+ * delay started being reported rather than merely applied, and they mean opposite things: a measured zero
+ * says the vehicle is on time, an absent one says nothing is known. Anything summarising a line would read a
+ * run of the second kind as a punctual network.
  */
 @Slf4j
 public class GtfsPredictionUtil {
@@ -56,32 +69,37 @@ public class GtfsPredictionUtil {
   private GtfsPredictionUtil() {}
 
   /**
-   * Predicted departures for the stops on {@code chain} that this vehicle has still to reach, in the order
-   * it will reach them.
+   * How late this vehicle is running, and when it is due to leave each stop on {@code chain} it has still to
+   * reach, in the order it will reach them.
    * <p>
-   * Empty for anything that cannot be worked out — the list is decoration on a schematic that has to keep
-   * drawing, so a trip with unusable times costs its own predictions and nothing else.
+   * {@link VehiclePrediction#none()} for anything that cannot be worked out — the times are decoration on a
+   * schematic that has to keep drawing, so a trip with unusable stops costs its own predictions and nothing
+   * else.
    *
    * @param chain      the route group's chain, which the vehicle's {@code location} indexes into
    * @param vehicle    the located vehicle, carrying its own trip and its position report
    * @param observedAt when the vehicle was at the position it is reporting — the anchored moment, not the
    *                   report's own timestamp
    */
-  public static List<StopPrediction> predict(LiveTrip chain, LiveVehicle vehicle, Instant observedAt) {
+  public static VehiclePrediction predict(LiveTrip chain, LiveVehicle vehicle, Instant observedAt) {
     List<GtfsStopTimeInfo> stopTimes = vehicle.getTrip().getStopTimes();
     List<GtfsStopInfo> ownStops = ownStops(stopTimes);
     if (ownStops.size() < 2) {
-      return List.of();
+      return VehiclePrediction.none();
     }
     try {
       LocalDate serviceDate = GtfsTimeUtil.resolveServiceDate(stopTimes, observedAt);
       VehicleLocation onOwnTrip = GtfsGeometryUtil.locateOnRoute(ownStops, vehicle.getPosition());
       Duration delay = estimateDelay(stopTimes, serviceDate, onOwnTrip, observedAt);
       Map<String, Instant> departuresAhead = departuresAhead(stopTimes, serviceDate, onOwnTrip, delay);
-      return alongChain(chain, vehicle, departuresAhead);
+      List<StopPrediction> stopPredictions = alongChain(chain, vehicle, departuresAhead);
+      if (delay == null) {
+        return VehiclePrediction.uncorrected(stopPredictions);
+      }
+      return new VehiclePrediction(delay, DelaySource.GEOMETRY, stopPredictions);
     } catch (IllegalArgumentException e) {
       log.warn("No predictions for trip {}: {}", vehicle.getTrip().getTripId(), e.getMessage());
-      return List.of();
+      return VehiclePrediction.none();
     }
   }
 
@@ -102,13 +120,14 @@ public class GtfsPredictionUtil {
 
   /**
    * How far behind its timetable the vehicle is: the gap between where it should have been at the moment it
-   * reported, and when it actually reported being there. Negative when it is running early.
+   * reported, and when it actually reported being there. Negative when it is running early, and null when
+   * the projection is too poor to say anything at all.
    */
   private static Duration estimateDelay(List<GtfsStopTimeInfo> stopTimes, LocalDate serviceDate,
                                         VehicleLocation onOwnTrip, Instant observedAt) {
     if (onOwnTrip.dist() > MAX_MATCH_METRES) {
       log.debug("Vehicle projects {} m off its own trip — falling back to the timetable", onOwnTrip.dist());
-      return Duration.ZERO;
+      return null;
     }
     int from = GtfsTimeUtil.toSecondsSinceServiceMidnight(stopTimes.get(onOwnTrip.segIdx()).getDepartureTime());
     int to = GtfsTimeUtil.toSecondsSinceServiceMidnight(stopTimes.get(onOwnTrip.segIdx() + 1).getArrivalTime());
@@ -131,10 +150,13 @@ public class GtfsPredictionUtil {
    * Corrected departure times for the stops the vehicle has still to call at on its own trip, keyed by
    * parent station so the chain can be matched against them.
    * <p>
+   * A null {@code delay} means there was nothing to correct with, so the timetable is served as it stands.
+   * <p>
    * The first entry kept for a station wins, which only matters on a route that calls at one twice.
    */
   private static Map<String, Instant> departuresAhead(List<GtfsStopTimeInfo> stopTimes, LocalDate serviceDate,
                                                       VehicleLocation onOwnTrip, Duration delay) {
+    Duration correction = delay == null ? Duration.ZERO : delay;
     Map<String, Instant> departures = new HashMap<>();
     for (int i = onOwnTrip.segIdx() + 1; i < stopTimes.size(); i++) {
       GtfsStopTimeInfo stopTime = stopTimes.get(i);
@@ -143,7 +165,8 @@ public class GtfsPredictionUtil {
         continue;
       }
       int scheduled = GtfsTimeUtil.toSecondsSinceServiceMidnight(stopTime.getDepartureTime());
-      departures.putIfAbsent(parent.get().getStopId(), GtfsTimeUtil.toInstant(serviceDate, scheduled).plus(delay));
+      departures.putIfAbsent(parent.get().getStopId(),
+        GtfsTimeUtil.toInstant(serviceDate, scheduled).plus(correction));
     }
     return departures;
   }

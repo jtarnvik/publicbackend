@@ -39,6 +39,8 @@ public interface RouteDataMapper {
   @Mapping(target = "segIdx", source = "location.segIdx")
   @Mapping(target = "segmentFraction", source = "location.t")
   @Mapping(target = "distanceMetres", source = "location.dist")
+  @Mapping(target = "delaySeconds", source = "delay", qualifiedBy = DurationSeconds.class)
+  @Mapping(target = "observedAt", source = "observedAt", qualifiedBy = EpochSeconds.class)
   LiveVehicleResponse toResponse(LiveVehicle liveVehicle);
 
   @Mapping(target = "departure", source = "departure", qualifiedBy = EpochSeconds.class)

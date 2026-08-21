@@ -37,4 +37,21 @@ public class LiveVehicleResponse {
    * terminus. Empty when the times could not be worked out.
    */
   List<StopPredictionResponse> stopPredictions;
+  /**
+   * How late the vehicle is running, in whole seconds, negative when it is early. <b>Null means unknown</b>,
+   * which is a different thing from a zero: zero is a measurement saying the vehicle is on time. A consumer
+   * that treats the two alike will report a punctual line whenever it is really an unmeasured one.
+   */
+  Integer delaySeconds;
+  /**
+   * Where {@code delaySeconds} came from, as a {@code DelaySource} name, and therefore how far to trust it.
+   * Null exactly when the delay is.
+   */
+  String delaySource;
+  /**
+   * When the vehicle was really at the position reported here, as epoch seconds — the moment the feed first
+   * sent these coordinates, which is not always the {@code timestamp} attached to them. The gap between the
+   * two is how stale the drawn position is; on the train feed it runs to minutes.
+   */
+  long observedAt;
 }

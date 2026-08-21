@@ -17,6 +17,7 @@ import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.ResolvedTrip;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.RouteData;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.RouteFocus;
 import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.TripQuery;
+import com.tarnvik.publicbackend.commuter.model.gtfs.livetraffic.VehiclePrediction;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.samtrafiken.SamtrafikenProvider;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil;
 import com.tarnvik.publicbackend.commuter.service.util.GtfsGeometryUtil.VehicleLocation;
@@ -328,13 +329,15 @@ public class GtfsRealtimeService {
   /**
    * Shifts a vehicle's segment index from the full chain onto the cropped one, and drops the predictions
    * for stops the cropped chain does not draw — they would be times against rows that are not there.
+   * <p>
+   * Everything else about the vehicle is carried over untouched, which is why this rebuilds from
+   * {@code toBuilder()} rather than naming each field: cropping the view must never quietly drop a fact
+   * about the vehicle, and a fresh builder would lose every field added after it was written.
    */
   private LiveVehicle rebase(LiveVehicle vehicle, int startIdx, Set<String> croppedStopIds) {
     VehicleLocation location = vehicle.getLocation();
-    return LiveVehicle.builder()
-      .position(vehicle.getPosition())
+    return vehicle.toBuilder()
       .location(new VehicleLocation(location.segIdx() - startIdx, location.t(), location.dist()))
-      .trip(vehicle.getTrip())
       .stopPredictions(vehicle.getStopPredictions().stream()
         .filter(prediction -> croppedStopIds.contains(prediction.stopId()))
         .toList())
@@ -357,18 +360,22 @@ public class GtfsRealtimeService {
       return Optional.empty();
     }
     VehicleLocation location = GtfsGeometryUtil.locateOnRoute(liveTrip.getLiveStops(), vp);
+    // Anchored rather than reported: a feed that refreshes the timestamp without moving the position would
+    // otherwise have every second of that staleness read as delay. See GtfsPositionAnchors.
+    Instant observedAt = positionAnchors.observedAt(vp, now);
     LiveVehicle vehicle = LiveVehicle.builder()
       .position(vp)
       .location(location)
       .trip(maybeTrip.get())
+      .observedAt(observedAt)
       .build();
-    // Anchored rather than reported: a feed that refreshes the timestamp without moving the position would
-    // otherwise have every second of that staleness read as delay. See GtfsPositionAnchors.
-    Instant observedAt = positionAnchors.observedAt(vp, now);
     // Predicted against the full chain for the same reason the geometry is: what the caller asked to see
     // must not change where anything is, only how much of it is sent.
+    VehiclePrediction prediction = GtfsPredictionUtil.predict(liveTrip, vehicle, observedAt);
     return Optional.of(vehicle.toBuilder()
-      .stopPredictions(GtfsPredictionUtil.predict(liveTrip, vehicle, observedAt))
+      .delay(prediction.delay())
+      .delaySource(prediction.delaySource())
+      .stopPredictions(prediction.stopPredictions())
       .build());
   }
 
