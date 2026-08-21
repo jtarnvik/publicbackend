@@ -47,6 +47,16 @@ public class GtfsRealtimeService {
   private static final String STATUS_NO_LIVE_TRIP = "No live trip for group";
   private static final String STATUS_FOCUS_WINDOW_NOT_FOUND = "Focus window not found in chain";
 
+  /**
+   * How close a vehicle has to be to a stop to count as standing at it.
+   * <p>
+   * Generous, and deliberately so: the chain resolves to <em>parent stations</em> while a vehicle sits at
+   * one of their platforms, which on a large station is a hundred metres from the station's own
+   * coordinates. The cost of being generous is a vehicle on its final approach counted as arrived, which
+   * only ever suppresses a staleness marker a few seconds early.
+   */
+  private static final double AT_STOP_METRES = 150.0;
+
   private final SamtrafikenProvider samtrafikenProvider;
   private final GtfsAccessService gtfsAccessService;
   private final ApplicationEventPublisher eventPublisher;
@@ -382,6 +392,7 @@ public class GtfsRealtimeService {
       .location(location)
       .trip(maybeTrip.get())
       .observedAt(observedAt)
+      .atStop(isAtStop(liveTrip, location, vp))
       .build();
     // Predicted against the full chain for the same reason the geometry is: what the caller asked to see
     // must not change where anything is, only how much of it is sent.
@@ -392,6 +403,22 @@ public class GtfsRealtimeService {
       .delaySource(prediction.delaySource())
       .stopPredictions(prediction.stopPredictions())
       .build());
+  }
+
+  /**
+   * Whether the vehicle is standing at either end of the segment it was placed on.
+   * <p>
+   * Only the two stops bounding its own segment are considered — the vehicle is by construction nearer to
+   * those than to any other stop on the chain, so the rest cannot win and need not be measured.
+   */
+  private boolean isAtStop(LiveTrip liveTrip, VehicleLocation location, GtfsVehiclePosition vp) {
+    List<LiveStop> stops = liveTrip.getLiveStops();
+    int segIdx = location.segIdx();
+    if (segIdx < 0 || segIdx + 1 >= stops.size()) {
+      return false;
+    }
+    return GtfsGeometryUtil.metresBetween(stops.get(segIdx), vp) <= AT_STOP_METRES
+      || GtfsGeometryUtil.metresBetween(stops.get(segIdx + 1), vp) <= AT_STOP_METRES;
   }
 
   /**

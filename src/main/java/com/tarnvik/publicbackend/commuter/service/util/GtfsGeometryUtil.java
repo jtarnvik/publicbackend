@@ -61,6 +61,18 @@ public class GtfsGeometryUtil {
     return new SegmentProjection(segIdx, t, dist, a, b);
   }
 
+  /**
+   * Great-circle distance between two points, in metres.
+   * <p>
+   * Exposed for the questions that are about a point rather than about a route — how far a vehicle is from
+   * the platform it is drawn beside, say. {@link #locateOnRoute} answers a different question and cannot be
+   * made to answer this one: its {@code dist} is the distance to the nearest point of a segment, which is
+   * near zero for a vehicle running normally between two stops.
+   */
+  public static double metresBetween(GeoPosition from, GeoPosition to) {
+    return haversineMetres(from.getLat(), from.getLng(), to.getLat(), to.getLng());
+  }
+
   private static double haversineMetres(double lat1, double lng1, double lat2, double lng2) {
     double dLat = Math.toRadians(lat2 - lat1);
     double dLng = Math.toRadians(lng2 - lng1);

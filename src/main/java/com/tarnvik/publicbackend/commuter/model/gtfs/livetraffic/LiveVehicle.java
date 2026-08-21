@@ -55,6 +55,18 @@ public class LiveVehicle {
   DelaySource delaySource;
 
   /**
+   * Whether the vehicle is standing at, or within a platform's length of, one of the stops it is drawn
+   * between.
+   * <p>
+   * Exists so that a stationary vehicle is not mistaken for a lost one. A position that stops changing is
+   * normally a position going stale, but a vehicle dwelling at a platform legitimately repeats its
+   * coordinates — and in that case the drawn position is not merely current, it is the most accurate it
+   * ever gets. Anything reading {@link #observedAt} as uncertainty has to exclude this case or it will
+   * report its worst confidence exactly where the truth is best known.
+   */
+  boolean atStop;
+
+  /**
    * When the vehicle was at the position it is reporting — the anchored moment from
    * {@code GtfsPositionAnchors}, not the timestamp the feed attached to the report.
    * <p>

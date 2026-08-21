@@ -54,4 +54,10 @@ public class LiveVehicleResponse {
    * two is how stale the drawn position is; on the train feed it runs to minutes.
    */
   long observedAt;
+  /**
+   * Whether the vehicle is standing at one of the stops it is drawn between. A position that has stopped
+   * changing is normally one going stale — but not this one, where it is instead as accurate as it ever
+   * gets, so anything reading {@code observedAt} as uncertainty must exclude these.
+   */
+  boolean atStop;
 }

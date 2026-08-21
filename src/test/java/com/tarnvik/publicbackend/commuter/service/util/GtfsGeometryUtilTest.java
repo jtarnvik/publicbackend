@@ -100,4 +100,28 @@ class GtfsGeometryUtilTest {
     assertThat(result.dist()).isGreaterThan(50.0);
     assertThat(result.dist()).isLessThan(65.0);
   }
+
+  @Test
+  void metresBetween_measuresPointToPoint() {
+    // 0.001° of latitude is about 111 m anywhere.
+    assertThat(GtfsGeometryUtil.metresBetween(stop(59.000, 18.000), stop(59.001, 18.000)))
+      .isCloseTo(111.0, within(1.0));
+    assertThat(GtfsGeometryUtil.metresBetween(stop(59.000, 18.000), stop(59.000, 18.000)))
+      .isZero();
+  }
+
+  /**
+   * The distinction the two functions draw, and the reason "is this vehicle at a stop" cannot be answered
+   * with {@code locateOnRoute}: a vehicle running normally halfway between two stops is right on the line
+   * between them, so its {@code dist} is near zero while it is 55 m from either stop.
+   */
+  @Test
+  void metresBetween_answersWhatDistOnTheRouteCannot() {
+    GtfsStop midway = stop(59.0005, 18.000);
+
+    VehicleLocation onRoute = GtfsGeometryUtil.locateOnRoute(STOPS, midway);
+
+    assertThat(onRoute.dist()).isLessThan(1.0);
+    assertThat(GtfsGeometryUtil.metresBetween(STOPS.get(0), midway)).isCloseTo(55.0, within(2.0));
+  }
 }
