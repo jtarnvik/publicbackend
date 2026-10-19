@@ -4,8 +4,12 @@ import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.Model;
+import com.anthropic.models.messages.OutputConfig;
+import com.anthropic.models.messages.RefusalStopDetails;
+import com.anthropic.models.messages.StopReason;
 import com.anthropic.models.messages.StructuredMessage;
 import com.anthropic.models.messages.StructuredMessageCreateParams;
+import com.anthropic.models.messages.StructuredOutputConfig;
 import com.tarnvik.publicbackend.commuter.model.domain.DeviationResponse;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.claude.dto.ClaudeDeviationResponse;
 import com.tarnvik.publicbackend.commuter.port.outgoing.rest.claude.mapper.ClaudeDeviationResponseMapper;
@@ -51,15 +55,40 @@ public class ClaudeProvider {
   public DeviationResponse interpretDeviation(String deviation) {
     String prompt = DEVIATION_PROMPT.formatted(deviation);
 
+    // Thinking is on by default and counts toward maxTokens, so the cap leaves room for it as well as the JSON.
     StructuredMessageCreateParams<ClaudeDeviationResponse> params = MessageCreateParams.builder()
-      .model(Model.CLAUDE_HAIKU_4_5)
-      .maxTokens(512)
+      .model(Model.CLAUDE_HAIKU_5_5)
+      .maxTokens(4096)
       .addUserMessage(prompt)
-      .outputConfig(ClaudeDeviationResponse.class)
+      .outputConfig(StructuredOutputConfig.<ClaudeDeviationResponse>builder()
+        .format(ClaudeDeviationResponse.class)
+        .effort(OutputConfig.Effort.LOW)
+        .build())
       .build();
 
     StructuredMessage<ClaudeDeviationResponse> response = client.messages().create(params);
-    ClaudeDeviationResponse claudeResponse = response.content().getFirst().asText().text();
+    verifyStopReason(response);
+
+    // The response may begin with thinking blocks, so the answer is the first text block, not the first block.
+    ClaudeDeviationResponse claudeResponse = response.content().stream()
+      .flatMap(block -> block.text().stream())
+      .findFirst()
+      .orElseThrow(() -> new IllegalStateException("Claude response contained no text block"))
+      .text();
     return mapper.toDeviationResponse(claudeResponse);
+  }
+
+  private static void verifyStopReason(StructuredMessage<ClaudeDeviationResponse> response) {
+    StopReason stopReason = response.stopReason().orElse(null);
+    if (StopReason.REFUSAL.equals(stopReason)) {
+      String category = response.stopDetails()
+        .flatMap(RefusalStopDetails::category)
+        .map(Object::toString)
+        .orElse("unknown");
+      throw new IllegalStateException("Claude declined to interpret the deviation, category " + category);
+    }
+    if (StopReason.MAX_TOKENS.equals(stopReason)) {
+      throw new IllegalStateException("Claude response was cut off at max tokens");
+    }
   }
 }
