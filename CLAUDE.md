@@ -116,9 +116,10 @@ Authentication flow:
   response, not the backend failing — the job continues. Relevant to any long-running admin endpoint.
 
 Host-level specifics — Caddyfile, GoDNS config, certificate paths, firewall rules, Cloudflare account
-details — are in `commuter-infra-manual.md`, which is **gitignored and local-only**: this repository is
-public and the manual records the home WAN IP, which the proxied `api2` record exists to keep hidden.
-Do not copy those details into this file.
+details — are in `~/develop/repos/personal/home-infra-manual.md`, **outside every repository**: this
+repository is public and the manual describes the home network, which the proxied `api2` record exists to
+keep hidden. It lived here as the gitignored `commuter-infra-manual.md` until October 2026, when a second
+project (`pbs`) came to share the Mini. Do not copy those details into this file.
 
 ### Local Development (MySQL)
 - MySQL 8.x at `192.168.1.204:3306`, database: `commuter`
